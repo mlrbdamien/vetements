@@ -130,3 +130,50 @@ body {
   letter-spacing: 0.08em;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------------------------------------------------------------------------
+   Impression des bulletins.
+
+   Le bulletin de réception sert au contrôle de la facturation Elis : il est
+   imprimé, annoté, puis classé. Tout ce qui relève de la navigation ou de
+   l'action n'a rien à faire sur la feuille.
+   --------------------------------------------------------------------------- */
+@media print {
+  /* Les couleurs de thème sombre ne s'impriment pas : on force le clair. */
+  :root {
+    color-scheme: light;
+    --page: #ffffff;
+    --surface-1: #ffffff;
+    --surface-2: #ffffff;
+    --text-primary: #000000;
+    --text-secondary: #333333;
+    --text-muted: #555555;
+    --border: #cccccc;
+    --border-strong: #888888;
+    --shadow-card: none;
+  }
+
+  header,
+  nav {
+    display: none !important;
+  }
+
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  /* Un bulletin ne doit pas être coupé en deux par un saut de page. */
+  table {
+    break-inside: avoid;
+  }
+
+  /* Le détail des codes-barres est replié à l'écran, déplié sur le papier :
+     c'est lui qui permet de pointer le bac pièce par pièce. */
+  details > summary {
+    display: none;
+  }
+  details > ul {
+    display: grid !important;
+  }
+}

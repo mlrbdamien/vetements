@@ -105,7 +105,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         email,
         password: motDePasse,
       });
-      if (error) throw new Error('Email ou mot de passe incorrect.');
+      // Distinguer les causes : « identifiants invalides » et « compte non
+      // confirmé » se corrigent très différemment, et masquer la seconde
+      // derrière la première envoie chercher un mot de passe qui est bon.
+      if (error) {
+        const code = error.code ?? '';
+        if (code === 'email_not_confirmed') {
+          throw new Error(
+            "Ce compte n'a jamais été confirmé. Dans Supabase, ouvrez Authentication → Users, puis confirmez-le.",
+          );
+        }
+        throw new Error(
+          code === 'invalid_credentials'
+            ? 'Email ou mot de passe incorrect.'
+            : `Connexion refusée par Supabase : ${error.message}`,
+        );
+      }
     },
     [],
   );

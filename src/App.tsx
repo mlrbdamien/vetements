@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { ScanLine, Truck, Users, WifiOff } from 'lucide-react';
+import { PackagePlus, ScanLine, Truck, Users, WifiOff } from 'lucide-react';
 import { SessionProvider, useSession } from './lib/session';
 import { OperateurProvider } from './lib/operateur';
 import { useEnLigne } from './lib/connexion';
 import { Alerte, cn } from './components/ui';
 import { ExigeOperateur } from './components/Identification';
+import { ExigeAdmin } from './components/ConnexionAdmin';
 import { Scan } from './pages/Scan';
 import { Expedition } from './pages/Expedition';
+import { Reception } from './pages/Reception';
 import { AdminOperateurs } from './pages/AdminOperateurs';
 
-type Onglet = 'scan' | 'expedition' | 'operateurs';
+type Onglet = 'scan' | 'expedition' | 'reception' | 'operateurs';
 
 function Corps() {
   const { chargement, erreur, admin } = useSession();
@@ -34,10 +36,16 @@ function Corps() {
     );
   }
 
-  const onglets: { id: Onglet; libelle: string; icone: typeof ScanLine }[] = [
+  const onglets: {
+    id: Onglet;
+    libelle: string;
+    icone: typeof ScanLine;
+    admin?: boolean;
+  }[] = [
     { id: 'scan', libelle: 'Scan', icone: ScanLine },
     { id: 'expedition', libelle: 'Expédition', icone: Truck },
-    { id: 'operateurs', libelle: 'Opérateurs', icone: Users },
+    { id: 'reception', libelle: 'Réception', icone: PackagePlus, admin: true },
+    { id: 'operateurs', libelle: 'Opérateurs', icone: Users, admin: true },
   ];
 
   return (
@@ -74,7 +82,7 @@ function Corps() {
               >
                 <o.icone size={16} strokeWidth={1.75} />
                 {o.libelle}
-                {o.id === 'operateurs' && admin && (
+                {o.admin && admin && (
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-good-text">
                     admin
                   </span>
@@ -86,11 +94,20 @@ function Corps() {
       </header>
 
       <main className="max-w-3xl mx-auto px-5 py-6">
-        {/* L'admin n'a pas besoin d'un opérateur identifié : c'est un compte
-            Supabase Auth nominatif, pas une personne qui tient le poste. */}
-        {onglet === 'operateurs' ? (
-          <AdminOperateurs />
-        ) : (
+        {/* Deux gardes distinctes. Les écrans d'administration demandent un
+            compte Supabase Auth nominatif ; les écrans de terrain demandent un
+            opérateur identifié par son PIN. Personne ne fait les deux. */}
+        {onglet === 'operateurs' && (
+          <ExigeAdmin>
+            <AdminOperateurs />
+          </ExigeAdmin>
+        )}
+        {onglet === 'reception' && (
+          <ExigeAdmin>
+            <Reception enLigne={enLigne} />
+          </ExigeAdmin>
+        )}
+        {(onglet === 'scan' || onglet === 'expedition') && (
           <ExigeOperateur>
             {onglet === 'scan' ? (
               <Scan enLigne={enLigne} />

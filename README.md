@@ -37,9 +37,15 @@ défaut partagé.
   désactivation / réactivation
 - Écran Expédition : corbeille du linge sale, scan ou coche pièce par pièce,
   bulletin `EXP-AAAA-NNNN`
+- Écran Entrée marchandise : scan du bac, création de référence à la volée pour
+  un code inconnu, rattachement au bulletin d'expédition, bulletin
+  `REC-AAAA-NNNN` imprimable
 
-Restent à faire : Entrée marchandise et PDF, fiche vêtement, tableaux de bord,
-exports CSV/XLSX.
+Restent à faire : fiche vêtement, tableaux de bord, exports CSV/XLSX.
+
+Le bulletin s'imprime via le navigateur (`⌘P`), avec une mise en page dédiée —
+pas de bibliothèque PDF. À revoir si un fichier doit être généré sans dialogue,
+par exemple pour un archivage automatique.
 
 ## Principes à ne pas contourner
 

@@ -1,10 +1,14 @@
 import { supabase } from './supabase';
 import type {
   ContexteScan,
+  ExpeditionOuverte,
+  LigneReception,
   LingeSale,
   Operateur,
   ResultatExpedition,
   ResultatMouvement,
+  ResultatReception,
+  StatutVetement,
   TypeVetement,
 } from '../types';
 
@@ -134,6 +138,55 @@ export function enregistrerExpedition(
     p_operateur_id: operateurId,
     p_pin: pin,
     p_vetement_ids: vetementIds,
+  });
+}
+
+// --- Entrée marchandise ----------------------------------------------------
+
+/** Les expéditions auxquelles aucune réception n'est encore rattachée. */
+export function listerExpeditionsOuvertes() {
+  return table<ExpeditionOuverte>(
+    'v_expeditions_ouvertes',
+    'id, numero, date, nb_envoyes, jours',
+  );
+}
+
+/**
+ * Cherche une référence par son code-barre. Renvoie null si elle est inconnue
+ * — cas normal en entrée marchandise, pas une erreur : c'est le signal qu'il
+ * faut créer la référence.
+ */
+export async function chercherVetement(codeBarre: string) {
+  const { data, error } = await client()
+    .from('vetement')
+    .select('id, code_barre, taille, rebut, statut, nb_lavages, type_id')
+    .eq('code_barre', codeBarre.trim())
+    .maybeSingle();
+  if (error) throw erreurDeSupabase(error.message, error.code);
+  return data as {
+    id: number;
+    code_barre: string;
+    taille: number;
+    rebut: boolean;
+    statut: StatutVetement;
+    nb_lavages: number;
+    type_id: number;
+  } | null;
+}
+
+/** Un bulletin, N réceptions, une transaction — comme pour l'expédition. */
+export function enregistrerReception(
+  lignes: LigneReception[],
+  expeditionId: number | null,
+) {
+  return rpc<ResultatReception>('enregistrer_reception', {
+    p_lignes: lignes.map((l) => ({
+      code_barre: l.code_barre,
+      type_id: l.type_id ?? null,
+      taille: l.taille ?? null,
+      rebut: l.rebut ?? false,
+    })),
+    p_expedition_id: expeditionId,
   });
 }
 

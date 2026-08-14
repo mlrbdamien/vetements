@@ -68,6 +68,49 @@ export interface ResultatExpedition {
   nb_restants: number;
 }
 
+/** Vue `v_expeditions_ouvertes` — les envois sans réception rattachée. */
+export interface ExpeditionOuverte {
+  id: number;
+  numero: string;
+  date: string;
+  nb_envoyes: number;
+  jours: number;
+}
+
+/**
+ * Une pièce du bac reçu. `type_id`, `taille` et `rebut` ne servent qu'aux
+ * codes-barres inconnus, que la base crée à la volée : Elis fournit les
+ * vêtements autant qu'il les lave.
+ */
+export interface LigneReception {
+  code_barre: string;
+  type_id?: number;
+  taille?: number;
+  rebut?: boolean;
+  /** Renseignés côté client pour l'affichage d'une pièce déjà connue. */
+  connu: boolean;
+  type_libelle?: string;
+}
+
+export interface ResultatReception {
+  document_id: number;
+  numero: string;
+  date: string;
+  nb_recus: number;
+  /** Références créées à la volée, jamais vues auparavant. */
+  nb_crees: number;
+  /** Pièces qui revenaient de chez Elis : les seules dont le compteur monte. */
+  nb_laves: number;
+  expedition: string | null;
+  lignes: {
+    code_barre: string;
+    type_libelle: string;
+    taille: number;
+    rebut: boolean;
+    nb_lavages: number;
+  }[];
+}
+
 export const LIBELLE_STATUT: Record<StatutVetement, string> = {
   nouveau: 'Jamais réceptionné',
   en_stock: 'En stock',

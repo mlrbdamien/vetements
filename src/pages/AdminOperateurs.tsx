@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
   KeyRound,
   LogOut,
-  ShieldAlert,
   UserPlus,
   UserRoundCheck,
   UserRoundX,
@@ -30,72 +29,8 @@ import {
 } from '../components/ui';
 
 export function AdminOperateurs() {
-  const { admin, connecterAdmin, quitterAdmin } = useSession();
-
-  if (!admin) return <ConnexionAdmin onConnexion={connecterAdmin} />;
+  const { quitterAdmin } = useSession();
   return <Liste onQuitter={quitterAdmin} />;
-}
-
-/* ------------------------------------------------------------------------- */
-
-function ConnexionAdmin({
-  onConnexion,
-}: {
-  onConnexion: (email: string, mdp: string) => Promise<void>;
-}) {
-  const [email, setEmail] = useState('');
-  const [mdp, setMdp] = useState('');
-  const [erreur, setErreur] = useState<string | null>(null);
-  const [occupe, setOccupe] = useState(false);
-
-  async function valider(e: FormEvent) {
-    e.preventDefault();
-    setOccupe(true);
-    setErreur(null);
-    try {
-      await onConnexion(email, mdp);
-    } catch (err) {
-      setErreur((err as Error).message);
-    } finally {
-      setOccupe(false);
-    }
-  }
-
-  return (
-    <div className="max-w-sm mx-auto space-y-4">
-      <Card>
-        <CardHeader icon={ShieldAlert} title="Espace administration" />
-        <p className="text-sm text-ink-3 mb-5">
-          La gestion des opérateurs est réservée à l'administratrice. Le compte
-          du poste ne suffit pas.
-        </p>
-        <form onSubmit={valider}>
-          <Field label="Adresse email">
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="username"
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Mot de passe">
-            <input
-              type="password"
-              value={mdp}
-              onChange={(e) => setMdp(e.target.value)}
-              autoComplete="current-password"
-              className={inputClass}
-            />
-          </Field>
-          <Button type="submit" disabled={occupe || !email || !mdp}>
-            Se connecter
-          </Button>
-        </form>
-      </Card>
-      {erreur && <Alerte>{erreur}</Alerte>}
-    </div>
-  );
 }
 
 /* ------------------------------------------------------------------------- */

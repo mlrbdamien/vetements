@@ -991,6 +991,159 @@ grant execute on function enregistrer_expedition(bigint, text, bigint[]) to auth
 
 
 -- ===========================================================================
+-- Lot 3 — Entrée marchandise
+-- ===========================================================================
+
+-- L'entrée marchandise est faite par l'administratrice, qui n'est PAS un
+-- opérateur : elle n'a ni ligne dans `operateur` ni code PIN. Sans cette
+-- colonne, une réception serait un mouvement sans auteur — or c'est
+-- précisément le mouvement qui sert à contester une facture Elis.
+alter table mouvement add column if not exists cree_par_admin uuid references auth.users (id);
+
+
+-- Les expéditions auxquelles aucune réception n'est encore rattachée.
+-- C'est ce lien qui alimente v_controle_facturation : sans lui, on ne peut pas
+-- comparer ce qui est parti à ce qui revient.
+create or replace view v_expeditions_ouvertes as
+select
+  d.id, d.numero, d.date,
+  (select count(*) from mouvement m
+    where m.document_id = d.id and m.type = 'ENVOI_ELIS' and not m.annule) as nb_envoyes,
+  (current_date - d.date) as jours
+from document d
+where d.genre = 'expedition'
+  and not exists (select 1 from document r where r.expedition_liee_id = d.id)
+order by d.date desc;
+
+
+-- Enregistre un bac reçu : un bulletin, N réceptions, une transaction.
+--
+-- Elis FOURNIT les vêtements autant qu'il les lave : un bac contient donc des
+-- codes-barres encore inconnus. Chaque ligne porte de quoi créer la référence
+-- à la volée si besoin (type, taille, rebut).
+--
+-- p_lignes : [{"code_barre": "...", "type_id": 1, "taille": 3, "rebut": false}]
+-- type_id, taille et rebut ne servent que pour un code-barre inconnu.
+create or replace function enregistrer_reception(
+  p_lignes        jsonb,
+  p_expedition_id bigint default null
+) returns jsonb language plpgsql security definer
+  set search_path = public, extensions, pg_temp as $$
+declare
+  ligne      jsonb;
+  v_code     text;
+  v          record;
+  v_doc_id   bigint;
+  v_numero   text;
+  v_vet_id   bigint;
+  v_recus    integer := 0;
+  v_crees    integer := 0;
+  v_laves    integer := 0;
+  v_codes    text[] := '{}';
+begin
+  if not est_admin() then
+    raise exception 'Seule l''administratrice peut enregistrer une entrée marchandise.';
+  end if;
+
+  if p_lignes is null or jsonb_array_length(p_lignes) = 0 then
+    raise exception 'Aucune pièce n''a été scannée : il n''y a rien à réceptionner.';
+  end if;
+
+  if p_expedition_id is not null then
+    if not exists (select 1 from document
+                    where id = p_expedition_id and genre = 'expedition') then
+      raise exception 'Le bulletin d''expédition indiqué est introuvable.';
+    end if;
+    if exists (select 1 from document where expedition_liee_id = p_expedition_id) then
+      raise exception 'Ce bulletin d''expédition est déjà rattaché à une réception.';
+    end if;
+  end if;
+
+  v_numero := prochain_numero_document('reception');
+  insert into document (numero, genre, expedition_liee_id)
+  values (v_numero, 'reception', p_expedition_id)
+  returning id into v_doc_id;
+
+  for ligne in select * from jsonb_array_elements(p_lignes)
+  loop
+    v_code := trim(ligne ->> 'code_barre');
+    if v_code is null or v_code = '' then
+      raise exception 'Une ligne du bac n''a pas de code-barre.';
+    end if;
+
+    -- Un même code scanné deux fois dans le bac : le signaler clairement
+    -- plutôt que de laisser échouer la transition avec un message obscur.
+    if v_code = any(v_codes) then
+      raise exception 'Le code-barre % a été scanné deux fois dans ce bac.', v_code;
+    end if;
+    v_codes := v_codes || v_code;
+
+    select vt.id, vt.statut, vt.taille, t.libelle
+      into v
+      from vetement vt join type_vetement t on t.id = vt.type_id
+     where vt.code_barre = v_code;
+
+    if not found then
+      -- Code-barre inconnu : Elis livre du neuf, on crée la référence.
+      if (ligne ->> 'type_id') is null or (ligne ->> 'taille') is null then
+        raise exception 'Le code-barre % est inconnu : indiquez son type et sa taille pour le créer.',
+          v_code;
+      end if;
+      insert into vetement (code_barre, type_id, taille, rebut)
+      values (v_code,
+              (ligne ->> 'type_id')::bigint,
+              (ligne ->> 'taille')::smallint,
+              coalesce((ligne ->> 'rebut')::boolean, false))
+      returning id into v_vet_id;
+      v_crees := v_crees + 1;
+    else
+      if v.statut not in ('nouveau', 'chez_elis') then
+        raise exception '% (% taille %) n''était pas chez Elis : il est « % ». Rien n''a été réceptionné.',
+          v_code, v.libelle, v.taille, replace(v.statut::text, '_', ' ');
+      end if;
+      -- Le compteur ne montera que pour celui-ci : un article neuf n'a pas
+      -- été lavé. C'est recalculer_vetement qui applique la règle.
+      if v.statut = 'chez_elis' then
+        v_laves := v_laves + 1;
+      end if;
+      v_vet_id := v.id;
+    end if;
+
+    insert into mouvement (vetement_id, type, document_id, cree_par_admin)
+    values (v_vet_id, 'RECEPTION', v_doc_id, auth.uid());
+
+    perform recalculer_vetement(v_vet_id);
+    v_recus := v_recus + 1;
+  end loop;
+
+  return jsonb_build_object(
+    'document_id', v_doc_id,
+    'numero',      v_numero,
+    'date',        current_date,
+    'nb_recus',    v_recus,
+    'nb_crees',    v_crees,
+    'nb_laves',    v_laves,
+    'expedition',  (select numero from document where id = p_expedition_id),
+    'lignes',      (
+      select coalesce(jsonb_agg(jsonb_build_object(
+               'code_barre', vt.code_barre,
+               'type_libelle', t.libelle,
+               'taille', vt.taille,
+               'rebut', vt.rebut,
+               'nb_lavages', vt.nb_lavages) order by t.libelle, vt.taille, vt.code_barre), '[]'::jsonb)
+        from mouvement m
+        join vetement vt on vt.id = m.vetement_id
+        join type_vetement t on t.id = vt.type_id
+       where m.document_id = v_doc_id
+    )
+  );
+end $$;
+
+grant select on v_expeditions_ouvertes to authenticated;
+grant execute on function enregistrer_reception(jsonb, bigint) to authenticated;
+
+
+-- ===========================================================================
 -- Verrouillage final
 --
 -- DOIT rester en dernier : ce bloc retire les droits implicites que Postgres

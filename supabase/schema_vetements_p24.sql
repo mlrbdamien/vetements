@@ -864,3 +864,110 @@ grant execute on function
   desactiver_operateur(bigint),
   reactiver_operateur(bigint)
   to authenticated;
+
+
+-- ===========================================================================
+-- Lot 2 — Expédition vers Elis
+-- ===========================================================================
+
+-- La corbeille du linge sale, telle qu'elle s'affiche à l'écran Expédition.
+--
+-- `jours_depuis_retour` est le cœur de la détection des vêtements égarés : un
+-- vêtement rendu sale mais physiquement absent du bac ne sera jamais scanné,
+-- restera en `sale`, et son compteur montera bulletin après bulletin.
+create or replace view v_linge_sale as
+select
+  v.id as vetement_id, v.code_barre,
+  t.libelle as type_libelle, t.id as type_id,
+  v.taille, v.rebut,
+  m.horodatage as retour_le,
+  (current_date - m.horodatage::date) as jours_depuis_retour
+from vetement v
+join type_vetement t on t.id = v.type_id
+left join lateral (
+  select horodatage
+    from mouvement
+   where vetement_id = v.id and type = 'RETOUR_SALE' and not annule
+   order by horodatage desc limit 1
+) m on true
+where v.statut = 'sale';
+
+
+-- Enregistre une expédition complète : un bulletin, N mouvements, une seule
+-- transaction.
+--
+-- Atomique à dessein. Une expédition est un événement physique unique — un bac
+-- qui part — et le bulletin doit décrire exactement ce qui est parti. Si un
+-- vêtement de la liste n'est plus `sale` (un autre poste vient de l'expédier),
+-- tout est annulé et le message nomme la pièce : mieux vaut recommencer sur
+-- une liste à jour qu'émettre un bulletin qui ne correspond pas au bac.
+--
+-- Le PIN n'est vérifié qu'UNE fois : bcrypt coûte ~100 ms, le revérifier pour
+-- chaque pièce mettrait plusieurs secondes sur un bac de cinquante.
+create or replace function enregistrer_expedition(
+  p_operateur_id bigint,
+  p_pin          text,
+  p_vetement_ids bigint[]
+) returns jsonb language plpgsql security definer
+  set search_path = public, pg_temp as $$
+declare
+  r          record;
+  v_doc_id   bigint;
+  v_numero   text;
+  v_demandes integer;
+  v_trouves  integer;
+  v_envoyes  integer := 0;
+  v_restants integer;
+begin
+  if not verifier_pin(p_operateur_id, p_pin) then
+    raise exception 'Code PIN incorrect.';
+  end if;
+
+  v_demandes := coalesce(cardinality(p_vetement_ids), 0);
+  if v_demandes = 0 then
+    raise exception 'Aucun vêtement n''a été scanné ni coché : il n''y a rien à envoyer.';
+  end if;
+
+  select count(*) into v_trouves from vetement where id = any(p_vetement_ids);
+  if v_trouves <> v_demandes then
+    raise exception 'La liste contient des vêtements introuvables. Rafraîchissez la page et recommencez.';
+  end if;
+
+  v_numero := prochain_numero_document('expedition');
+  insert into document (numero, genre) values (v_numero, 'expedition')
+  returning id into v_doc_id;
+
+  for r in
+    select v.id, v.code_barre, v.statut, v.taille, t.libelle
+      from vetement v join type_vetement t on t.id = v.type_id
+     where v.id = any(p_vetement_ids)
+     order by v.code_barre
+  loop
+    -- Même règle que enregistrer_mouvement(..., 'expedition') : seul le linge
+    -- sale part chez Elis.
+    if r.statut <> 'sale' then
+      raise exception '% (% taille %) n''est plus dans la corbeille : il est « % ». Rien n''a été envoyé, rafraîchissez la liste.',
+        r.code_barre, r.libelle, r.taille, replace(r.statut::text, '_', ' ');
+    end if;
+
+    insert into mouvement (vetement_id, type, operateur_id, document_id)
+    values (r.id, 'ENVOI_ELIS', p_operateur_id, v_doc_id);
+
+    perform recalculer_vetement(r.id);
+    v_envoyes := v_envoyes + 1;
+  end loop;
+
+  -- Ce qui reste `sale` après coup : ni scanné ni coché, donc absent du bac.
+  select count(*) into v_restants from vetement where statut = 'sale';
+
+  return jsonb_build_object(
+    'document_id', v_doc_id,
+    'numero',      v_numero,
+    'date',        current_date,
+    'nb_envoyes',  v_envoyes,
+    'nb_restants', v_restants
+  );
+end $$;
+
+grant select on v_linge_sale to authenticated;
+grant execute on function enregistrer_expedition(bigint, text, bigint[]) to authenticated;

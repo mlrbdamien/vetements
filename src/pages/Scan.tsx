@@ -6,20 +6,15 @@ import {
   type FormEvent,
   type RefObject,
 } from 'react';
-import { LogIn, RotateCcw, ScanLine, ShieldCheck, Undo2 } from 'lucide-react';
-import {
-  annulerMouvement,
-  enregistrerMouvement,
-  listerOperateurs,
-  verifierPin,
-} from '../lib/api';
+import { ScanLine, Undo2 } from 'lucide-react';
+import { annulerMouvement, enregistrerMouvement } from '../lib/api';
+import { useOperateur } from '../lib/operateur';
 import {
   LIBELLE_MOUVEMENT,
   LIBELLE_STATUT,
-  nomComplet,
-  type Operateur,
   type ResultatMouvement,
 } from '../types';
+import { BandeauOperateur } from '../components/Identification';
 import { Alerte, Button, Card, Field, cn, inputClass } from '../components/ui';
 
 /* ---------------------------------------------------------------------------
@@ -50,26 +45,14 @@ const TONS_MOUVEMENT = {
 } as const;
 
 export function Scan({ enLigne }: { enLigne: boolean }) {
-  const [operateurs, setOperateurs] = useState<Operateur[]>([]);
-  const [operateur, setOperateur] = useState<Operateur | null>(null);
-  // Le PIN reste en mémoire le temps du poste : chaque RPC le revérifie en
-  // base. Il n'est jamais écrit dans localStorage ni dans une URL.
-  const [pin, setPin] = useState('');
-
+  const { operateur, pin } = useOperateur();
   const [code, setCode] = useState('');
   const [resultat, setResultat] = useState<ResultatMouvement | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [occupe, setOccupe] = useState(false);
 
   const champScan = useRef<HTMLInputElement>(null);
-  const identifie = operateur !== null;
-  useFocusScan(champScan, identifie && enLigne);
-
-  useEffect(() => {
-    listerOperateurs()
-      .then((tous) => setOperateurs(tous.filter((o) => o.actif)))
-      .catch((e: Error) => setErreur(e.message));
-  }, []);
+  useFocusScan(champScan, enLigne);
 
   const scanner = useCallback(
     async (e: FormEvent) => {
@@ -112,42 +95,9 @@ export function Scan({ enLigne }: { enLigne: boolean }) {
     }
   }, [resultat, operateur, pin]);
 
-  if (!identifie) {
-    return (
-      <Identification
-        operateurs={operateurs}
-        erreur={erreur}
-        onErreur={setErreur}
-        onIdentifie={(o, p) => {
-          setOperateur(o);
-          setPin(p);
-          setErreur(null);
-        }}
-      />
-    );
-  }
-
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-ink-2">
-          Poste tenu par{' '}
-          <span className="font-medium text-ink">{nomComplet(operateur)}</span>
-        </p>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            setOperateur(null);
-            setPin('');
-            setResultat(null);
-            setErreur(null);
-          }}
-        >
-          <RotateCcw size={14} strokeWidth={1.75} />
-          Changer d'opérateur
-        </Button>
-      </div>
+      <BandeauOperateur />
 
       <Card>
         <form onSubmit={scanner}>
@@ -226,120 +176,6 @@ export function Scan({ enLigne }: { enLigne: boolean }) {
           </div>
         </Card>
       )}
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------------
-   Identification en début de poste : sélection dans la liste + PIN.
-   Le PIN n'est jamais comparé ici — verifierPin() interroge la base.
-   --------------------------------------------------------------------------- */
-
-function Identification({
-  operateurs,
-  erreur,
-  onErreur,
-  onIdentifie,
-}: {
-  operateurs: Operateur[];
-  erreur: string | null;
-  onErreur: (e: string | null) => void;
-  onIdentifie: (o: Operateur, pin: string) => void;
-}) {
-  const [choisi, setChoisi] = useState<Operateur | null>(null);
-  const [pin, setPin] = useState('');
-  const [occupe, setOccupe] = useState(false);
-  const champPin = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (choisi) champPin.current?.focus();
-  }, [choisi]);
-
-  async function valider(e: FormEvent) {
-    e.preventDefault();
-    if (!choisi || pin.length !== 4 || occupe) return;
-    setOccupe(true);
-    onErreur(null);
-    try {
-      if (await verifierPin(choisi.id, pin)) {
-        onIdentifie(choisi, pin);
-      } else {
-        onErreur('Code PIN incorrect.');
-        setPin('');
-      }
-    } catch (err) {
-      onErreur((err as Error).message);
-      setPin('');
-    } finally {
-      setOccupe(false);
-    }
-  }
-
-  return (
-    <div className="space-y-5">
-      <Card>
-        <p className="font-medium mb-1">Qui tient le poste ?</p>
-        <p className="text-sm text-ink-3 mb-4">
-          Sélectionnez votre nom, puis saisissez votre code à 4 chiffres.
-        </p>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {operateurs.map((o) => (
-            <button
-              key={o.id}
-              type="button"
-              onClick={() => {
-                setChoisi(o);
-                setPin('');
-                onErreur(null);
-              }}
-              className={cn(
-                'rounded-control border px-3 py-3 text-sm font-medium transition-colors cursor-pointer text-left',
-                choisi?.id === o.id
-                  ? 'border-accent bg-accent-soft text-accent'
-                  : 'border-line bg-surface-2 hover:bg-line',
-              )}
-            >
-              {nomComplet(o)}
-              {!o.pin_defini && (
-                <span className="block text-[11px] font-normal text-ink-3 mt-0.5">
-                  code à initialiser
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {choisi && (
-          <form onSubmit={valider} className="mt-5 pt-5 border-t border-line">
-            <Field label={`Code de ${nomComplet(choisi)}`}>
-              <input
-                ref={champPin}
-                type="password"
-                inputMode="numeric"
-                autoComplete="off"
-                maxLength={4}
-                value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                className={cn(inputClass, 'champ-scan text-center py-4')}
-                placeholder="••••"
-              />
-            </Field>
-            <Button type="submit" size="lg" disabled={pin.length !== 4 || occupe}>
-              <LogIn size={18} strokeWidth={1.75} />
-              Ouvrir le poste
-            </Button>
-          </form>
-        )}
-      </Card>
-
-      {erreur && <Alerte>{erreur}</Alerte>}
-
-      <p className="flex items-start gap-2 text-xs text-ink-3">
-        <ShieldCheck size={14} strokeWidth={1.75} className="shrink-0 mt-0.5" />
-        Le code n'est jamais vérifié sur ce poste : il est comparé dans la base,
-        où seule son empreinte est conservée.
-      </p>
     </div>
   );
 }

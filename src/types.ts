@@ -46,6 +46,28 @@ export interface ResultatMouvement {
   detenteur: string | null;
 }
 
+/** Vue `v_linge_sale` — la corbeille, telle que l'écran Expédition l'affiche. */
+export interface LingeSale {
+  vetement_id: number;
+  code_barre: string;
+  type_libelle: string;
+  type_id: number;
+  taille: number;
+  rebut: boolean;
+  retour_le: string | null;
+  jours_depuis_retour: number | null;
+}
+
+/** Retour de `enregistrer_expedition`. */
+export interface ResultatExpedition {
+  document_id: number;
+  numero: string;
+  date: string;
+  nb_envoyes: number;
+  /** Ce qui est resté `sale` : ni scanné ni coché, donc absent du bac. */
+  nb_restants: number;
+}
+
 export const LIBELLE_STATUT: Record<StatutVetement, string> = {
   nouveau: 'Jamais réceptionné',
   en_stock: 'En stock',

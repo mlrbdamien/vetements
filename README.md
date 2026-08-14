@@ -35,9 +35,11 @@ défaut partagé.
 - Écran Scan (sortie et retour sale), avec annulation dans les 24 h
 - Écran admin des opérateurs : création, réinitialisation de PIN,
   désactivation / réactivation
+- Écran Expédition : corbeille du linge sale, scan ou coche pièce par pièce,
+  bulletin `EXP-AAAA-NNNN`
 
-Restent à faire : Expédition, Entrée marchandise et PDF, fiche vêtement,
-tableaux de bord, exports CSV/XLSX.
+Restent à faire : Entrée marchandise et PDF, fiche vêtement, tableaux de bord,
+exports CSV/XLSX.
 
 ## Principes à ne pas contourner
 
@@ -55,3 +57,15 @@ tableaux de bord, exports CSV/XLSX.
   qui les rendent actionnables.
 - **`operateur.pin_hash` n'est jamais exposé** : la table n'accorde aucun
   `SELECT`, le front passe par `operateur_public` et les RPC.
+- **Une expédition est atomique** : un bulletin, N mouvements, une transaction.
+  Le bulletin doit décrire exactement le bac qui part. Ce qui n'est ni scanné
+  ni coché reste `sale` et revient au bulletin suivant — c'est le mécanisme de
+  détection des vêtements égarés, pas un oubli.
+
+## Seuils à confirmer avec Annelore
+
+- `JOURS_SUSPECT` dans `src/pages/Expedition.tsx` (14 jours) : au-delà, une
+  pièce qui traîne en corbeille est signalée comme probablement égarée. Valeur
+  provisoire, la cadence réelle des envois chez Elis n'est pas connue.
+- Les seuils de stock minimum par type et taille (table `seuil_stock`, encore
+  vide).

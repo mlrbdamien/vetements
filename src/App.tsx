@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { ScanLine, Users, WifiOff } from 'lucide-react';
+import { ScanLine, Truck, Users, WifiOff } from 'lucide-react';
 import { SessionProvider, useSession } from './lib/session';
+import { OperateurProvider } from './lib/operateur';
 import { useEnLigne } from './lib/connexion';
 import { Alerte, cn } from './components/ui';
+import { ExigeOperateur } from './components/Identification';
 import { Scan } from './pages/Scan';
+import { Expedition } from './pages/Expedition';
 import { AdminOperateurs } from './pages/AdminOperateurs';
 
-type Onglet = 'scan' | 'operateurs';
+type Onglet = 'scan' | 'expedition' | 'operateurs';
 
 function Corps() {
   const { chargement, erreur, admin } = useSession();
@@ -33,6 +36,7 @@ function Corps() {
 
   const onglets: { id: Onglet; libelle: string; icone: typeof ScanLine }[] = [
     { id: 'scan', libelle: 'Scan', icone: ScanLine },
+    { id: 'expedition', libelle: 'Expédition', icone: Truck },
     { id: 'operateurs', libelle: 'Opérateurs', icone: Users },
   ];
 
@@ -82,7 +86,19 @@ function Corps() {
       </header>
 
       <main className="max-w-3xl mx-auto px-5 py-6">
-        {onglet === 'scan' ? <Scan enLigne={enLigne} /> : <AdminOperateurs />}
+        {/* L'admin n'a pas besoin d'un opérateur identifié : c'est un compte
+            Supabase Auth nominatif, pas une personne qui tient le poste. */}
+        {onglet === 'operateurs' ? (
+          <AdminOperateurs />
+        ) : (
+          <ExigeOperateur>
+            {onglet === 'scan' ? (
+              <Scan enLigne={enLigne} />
+            ) : (
+              <Expedition enLigne={enLigne} />
+            )}
+          </ExigeOperateur>
+        )}
       </main>
     </div>
   );
@@ -91,7 +107,9 @@ function Corps() {
 export function App() {
   return (
     <SessionProvider>
-      <Corps />
+      <OperateurProvider>
+        <Corps />
+      </OperateurProvider>
     </SessionProvider>
   );
 }

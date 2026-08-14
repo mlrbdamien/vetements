@@ -1,7 +1,9 @@
 import { supabase } from './supabase';
 import type {
   ContexteScan,
+  LingeSale,
   Operateur,
+  ResultatExpedition,
   ResultatMouvement,
   TypeVetement,
 } from '../types';
@@ -103,6 +105,35 @@ export function annulerMouvement(
     p_mouvement_id: mouvementId,
     p_operateur_id: operateurId,
     p_pin: pin,
+  });
+}
+
+// --- Expédition ------------------------------------------------------------
+
+/** La corbeille du linge sale, la plus ancienne d'abord. */
+export async function listerLingeSale(): Promise<LingeSale[]> {
+  const linge = await table<LingeSale>(
+    'v_linge_sale',
+    'vetement_id, code_barre, type_libelle, type_id, taille, rebut, retour_le, jours_depuis_retour',
+  );
+  return linge.sort(
+    (a, b) => (b.jours_depuis_retour ?? 0) - (a.jours_depuis_retour ?? 0),
+  );
+}
+
+/**
+ * Un bulletin, N mouvements, une seule transaction : l'expédition est un
+ * événement physique unique, et le bulletin doit décrire exactement le bac.
+ */
+export function enregistrerExpedition(
+  operateurId: number,
+  pin: string,
+  vetementIds: number[],
+) {
+  return rpc<ResultatExpedition>('enregistrer_expedition', {
+    p_operateur_id: operateurId,
+    p_pin: pin,
+    p_vetement_ids: vetementIds,
   });
 }
 

@@ -1,0 +1,132 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Tokens repris de ~/dev/vault : les valeurs brutes vivent sur :root, et
+   @theme les expose à Tailwind pour écrire `bg-surface-1` plutôt que
+   `bg-[var(--surface-1)]`.
+
+   Une différence de fond avec vault : ici l'écran est lu debout, à un mètre,
+   par quelqu'un qui tient un bac de linge. D'où les tailles de statut
+   surdimensionnées en bas de fichier.
+   --------------------------------------------------------------------------- */
+
+:root {
+  color-scheme: light;
+
+  --page: #fafafa;
+  --surface-1: #ffffff;
+  --surface-2: #f4f4f5;
+  --text-primary: #18181b;
+  --text-secondary: #52525b;
+  --text-muted: #71717a;
+  --border: #e4e4e7;
+  --border-strong: #d4d4d8;
+
+  --accent: #2a78d6;
+  --accent-hover: #1c5cab;
+  --accent-soft: #eff5fd;
+
+  --good: #0ca30c;
+  --good-text: #047804;
+  --good-soft: #edf8ed;
+  --warning: #fab219;
+  --warning-text: #8a6000;
+  --warning-soft: #fef8e7;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --critical-text: #b02525;
+  --critical-soft: #fdf0f0;
+
+  --shadow-card: 0 1px 2px rgba(24, 24, 27, 0.04);
+  --shadow-modal: 0 12px 32px -8px rgba(24, 24, 27, 0.18);
+  --ring: 0 0 0 2px var(--page), 0 0 0 4px var(--accent);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --page: #09090b;
+    --surface-1: #18181b;
+    --surface-2: #27272a;
+    --text-primary: #fafafa;
+    --text-secondary: #a1a1aa;
+    --text-muted: #8a8a93;
+    --border: #27272a;
+    --border-strong: #3f3f46;
+
+    --accent: #3987e5;
+    --accent-hover: #6da7ec;
+    --accent-soft: #16233a;
+
+    --good: #0ca30c;
+    --good-text: #22c55e;
+    --good-soft: #12240f;
+    --warning: #eab308;
+    --warning-text: #fbbf24;
+    --warning-soft: #241d08;
+    --serious: #f0956f;
+    --critical: #ef4444;
+    --critical-text: #f87171;
+    --critical-soft: #2a1414;
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-modal: 0 12px 32px -8px rgba(0, 0, 0, 0.6);
+  }
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--text-primary);
+  --color-ink-2: var(--text-secondary);
+  --color-ink-3: var(--text-muted);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-good: var(--good);
+  --color-good-text: var(--good-text);
+  --color-good-soft: var(--good-soft);
+  --color-warning: var(--warning);
+  --color-warning-text: var(--warning-text);
+  --color-warning-soft: var(--warning-soft);
+  --color-serious: var(--serious);
+  --color-critical: var(--critical);
+  --color-critical-text: var(--critical-text);
+  --color-critical-soft: var(--critical-soft);
+
+  --radius-card: 14px;
+  --radius-control: 10px;
+
+  --shadow-card: var(--shadow-card);
+  --shadow-modal: var(--shadow-modal);
+}
+
+html,
+body {
+  background: var(--page);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--radius-control);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Le champ de scan : gros caractères espacés, pour qu'un code mal lu se
+   repère d'un coup d'œil avant de valider. */
+.champ-scan {
+  font-size: 32px;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}

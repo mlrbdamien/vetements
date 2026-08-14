@@ -43,7 +43,7 @@ function Corps() {
     admin?: boolean;
   }[] = [
     { id: 'scan', libelle: 'Scan', icone: ScanLine },
-    { id: 'expedition', libelle: 'Expédition', icone: Truck },
+    { id: 'expedition', libelle: 'Expédition', icone: Truck, admin: true },
     { id: 'reception', libelle: 'Réception', icone: PackagePlus, admin: true },
     { id: 'operateurs', libelle: 'Opérateurs', icone: Users, admin: true },
   ];
@@ -60,9 +60,9 @@ function Corps() {
       )}
 
       <header className="border-b border-line bg-surface-1">
-        <div className="max-w-3xl mx-auto px-5 py-4 flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="font-semibold tracking-[-0.01em] truncate">
+        <div className="px-6 lg:px-8 py-3.5 flex items-center justify-between gap-6">
+          <div>
+            <h1 className="font-semibold tracking-[-0.01em] whitespace-nowrap">
               Vêtements de laboratoire
             </h1>
             <p className="text-xs text-ink-3">Pharmacie 24 · Elis</p>
@@ -93,7 +93,7 @@ function Corps() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-5 py-6">
+      <main className="max-w-5xl mx-auto px-6 lg:px-8 py-7">
         {/* Deux gardes distinctes. Les écrans d'administration demandent un
             compte Supabase Auth nominatif ; les écrans de terrain demandent un
             opérateur identifié par son PIN. Personne ne fait les deux. */}
@@ -107,13 +107,14 @@ function Corps() {
             <Reception enLigne={enLigne} />
           </ExigeAdmin>
         )}
-        {(onglet === 'scan' || onglet === 'expedition') && (
+        {onglet === 'expedition' && (
+          <ExigeAdmin>
+            <Expedition enLigne={enLigne} />
+          </ExigeAdmin>
+        )}
+        {onglet === 'scan' && (
           <ExigeOperateur>
-            {onglet === 'scan' ? (
-              <Scan enLigne={enLigne} />
-            ) : (
-              <Expedition enLigne={enLigne} />
-            )}
+            <Scan enLigne={enLigne} />
           </ExigeOperateur>
         )}
       </main>

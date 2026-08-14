@@ -68,6 +68,17 @@ par exemple pour un archivage automatique.
   ni coché reste `sale` et revient au bulletin suivant — c'est le mécanisme de
   détection des vêtements égarés, pas un oubli.
 
+## Hébergement
+
+Projet Supabase dédié, région **Zurich** — les données restent en Suisse.
+
+**Plan gratuit, assumé pour le moment** (décision d'août 2026). Il n'offre pas
+de restauration à un instant donné, et met le projet en pause après une semaine
+sans activité. Le journal `mouvement` étant ce qui donne du poids face à une
+facture Elis contestable, l'export périodique du journal hors de Supabase
+devient la sauvegarde de fait — à mettre en place avec le lot d'exports.
+À rouvrir avant une vraie mise en service.
+
 ## Seuils à confirmer avec Annelore
 
 - `JOURS_SUSPECT` dans `src/pages/Expedition.tsx` (14 jours) : au-delà, une

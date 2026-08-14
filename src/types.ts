@@ -66,6 +66,21 @@ export interface ResultatExpedition {
   nb_envoyes: number;
   /** Ce qui est resté `sale` : ni scanné ni coché, donc absent du bac. */
   nb_restants: number;
+  /** Le contenu du bac, tel qu'il figure sur le bulletin remis à Elis. */
+  lignes: {
+    code_barre: string;
+    type_libelle: string;
+    taille: number;
+    rebut: boolean;
+    nb_lavages: number;
+  }[];
+  /** Interne : ce qui n'est pas parti. N'a pas sa place sur le papier Elis. */
+  restants: {
+    code_barre: string;
+    type_libelle: string;
+    taille: number;
+    jours: number | null;
+  }[];
 }
 
 /** Vue `v_expeditions_ouvertes` — les envois sans réception rattachée. */
@@ -92,10 +107,23 @@ export interface LigneReception {
   type_libelle?: string;
 }
 
+/** Une ligne du tableau d'écart : ce qui est parti face à ce qui revient. */
+export interface EcartReception {
+  type_libelle: string;
+  taille: number;
+  envoyes: number;
+  recus: number;
+  manquants: number;
+}
+
 export interface ResultatReception {
   document_id: number;
   numero: string;
   date: string;
+  /** Numéro du bon de livraison d'Elis, pour rapprocher les deux papiers. */
+  reference_elis: string | null;
+  /** Vide si la réception n'est rattachée à aucune expédition. */
+  ecarts: EcartReception[];
   nb_recus: number;
   /** Références créées à la volée, jamais vues auparavant. */
   nb_crees: number;

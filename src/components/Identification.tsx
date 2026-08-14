@@ -56,7 +56,8 @@ function Identification() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="min-h-[calc(100dvh-8.5rem)] flex items-center justify-center">
+      <div className="w-full max-w-2xl space-y-5">
       <Card>
         <p className="font-medium mb-1">Qui tient le poste ?</p>
         <p className="text-sm text-ink-3 mb-4">
@@ -120,6 +121,7 @@ function Identification() {
         Le code n'est jamais vérifié sur ce poste : il est comparé dans la base,
         où seule son empreinte est conservée.
       </p>
+      </div>
     </div>
   );
 }

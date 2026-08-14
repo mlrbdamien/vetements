@@ -35,6 +35,7 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
   const [types, setTypes] = useState<TypeVetement[]>([]);
   const [expeditions, setExpeditions] = useState<ExpeditionOuverte[]>([]);
   const [expeditionId, setExpeditionId] = useState<number | null>(null);
+  const [referenceElis, setReferenceElis] = useState('');
 
   const [lignes, setLignes] = useState<LigneReception[]>([]);
   const [code, setCode] = useState('');
@@ -106,7 +107,9 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
     setOccupe(true);
     setErreur(null);
     try {
-      setBulletin(await enregistrerReception(lignes, expeditionId));
+      setBulletin(
+        await enregistrerReception(lignes, expeditionId, referenceElis.trim() || null),
+      );
       setLignes([]);
       setExpeditions(await listerExpeditionsOuvertes());
     } catch (err) {
@@ -115,7 +118,7 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
     } finally {
       setOccupe(false);
     }
-  }, [lignes, expeditionId, occupe]);
+  }, [lignes, expeditionId, referenceElis, occupe]);
 
   if (bulletin) {
     return (
@@ -124,6 +127,7 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
         onSuivant={() => {
           setBulletin(null);
           setExpeditionId(null);
+          setReferenceElis('');
         }}
       />
     );
@@ -162,6 +166,18 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
               </option>
             ))}
           </select>
+        </Field>
+
+        <Field
+          label="Bon de livraison Elis"
+          hint="Leur numéro de document. C'est la référence commune qui permet de rapprocher notre bulletin du leur en cas de litige."
+        >
+          <input
+            value={referenceElis}
+            onChange={(e) => setReferenceElis(e.target.value)}
+            className={inputClass}
+            placeholder="facultatif"
+          />
         </Field>
 
         <form onSubmit={scanner}>
@@ -391,13 +407,7 @@ function BulletinReception({
   bulletin: ResultatReception;
   onSuivant: () => void;
 }) {
-  // Regroupé par type et taille : c'est sous cette forme qu'Elis facture,
-  // donc sous cette forme qu'on peut contester.
-  const parType = new Map<string, number>();
-  for (const l of bulletin.lignes) {
-    const cle = `${l.type_libelle} ${l.taille} ${l.rebut}`;
-    parType.set(cle, (parType.get(cle) ?? 0) + 1);
-  }
+  const manquantsTotal = bulletin.ecarts.reduce((n, e) => n + e.manquants, 0);
 
   return (
     <div className="space-y-5">
@@ -410,23 +420,31 @@ function BulletinReception({
       </div>
 
       <Card className="print:border-0 print:shadow-none">
-        <div className="border-b border-line pb-4 mb-4">
+        <div className="border-b border-line pb-4 mb-5">
           <p className="text-xs font-semibold uppercase tracking-[0.06em] text-ink-3">
-            Bulletin de réception · Pharmacie 24
+            Bulletin de réception · Pharmacie 24 · prestataire Elis
           </p>
           <p className="text-3xl font-semibold tracking-[-0.02em] tabular mt-1">
             {bulletin.numero}
           </p>
-          <p className="text-sm text-ink-2 mt-1">
-            {new Date(bulletin.date).toLocaleDateString('fr-CH')}
+          <div className="text-sm text-ink-2 mt-2 space-y-0.5">
+            <p>{new Date(bulletin.date).toLocaleDateString('fr-CH')}</p>
             {bulletin.expedition && (
-              <>
-                {' · '}
-                <Link2 size={13} className="inline -mt-0.5" /> en retour de{' '}
-                {bulletin.expedition}
-              </>
+              <p>
+                <Link2 size={13} className="inline -mt-0.5 mr-1" />
+                En retour de notre envoi{' '}
+                <span className="tabular font-medium">{bulletin.expedition}</span>
+              </p>
             )}
-          </p>
+            {bulletin.reference_elis && (
+              <p>
+                Bon de livraison Elis&nbsp;:{' '}
+                <span className="tabular font-medium">
+                  {bulletin.reference_elis}
+                </span>
+              </p>
+            )}
+          </div>
         </div>
 
         <dl className="grid grid-cols-3 gap-4 text-sm mb-6">
@@ -444,53 +462,97 @@ function BulletinReception({
           </div>
         </dl>
 
-        <table className="w-full text-sm mb-6">
-          <thead>
-            <tr className="border-b border-line text-left text-ink-3">
-              <th className="pb-2 font-medium">Type</th>
-              <th className="pb-2 font-medium">Taille</th>
-              <th className="pb-2 font-medium text-right">Quantité</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[...parType.entries()].map(([cle, n]) => {
-              const [libelle, taille, rebut] = cle.split(' ');
-              return (
-                <tr key={cle} className="border-b border-line/60">
-                  <td className="py-2">
-                    {libelle}
-                    {rebut === 'true' && (
-                      <span className="text-ink-3"> (rebut)</span>
-                    )}
-                  </td>
-                  <td className="py-2 tabular">{taille}</td>
-                  <td className="py-2 tabular text-right font-medium">{n}</td>
+        {/* L'écart n'existe que si la réception est rattachée à un envoi.
+            C'est ce tableau qui fait du bulletin un argument face à une
+            facture, et pas seulement un récapitulatif de ce qui est arrivé. */}
+        {bulletin.ecarts.length > 0 && (
+          <section className="mb-7">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.06em] text-ink-3 mb-2">
+              Écart avec notre envoi {bulletin.expedition}
+            </h3>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line-strong text-left text-ink-3">
+                  <th className="pb-2 font-medium">Type</th>
+                  <th className="pb-2 font-medium">Taille</th>
+                  <th className="pb-2 font-medium text-right">Envoyés</th>
+                  <th className="pb-2 font-medium text-right">Reçus</th>
+                  <th className="pb-2 font-medium text-right">Manquants</th>
                 </tr>
-              );
-            })}
-            <tr>
-              <td className="pt-2 font-semibold" colSpan={2}>
-                Total
-              </td>
-              <td className="pt-2 tabular text-right font-semibold">
-                {bulletin.nb_recus}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {bulletin.ecarts.map((e) => (
+                  <tr
+                    key={e.type_libelle + e.taille}
+                    className="border-b border-line/60"
+                  >
+                    <td className="py-2">{e.type_libelle}</td>
+                    <td className="py-2 tabular">{e.taille}</td>
+                    <td className="py-2 tabular text-right">{e.envoyes}</td>
+                    <td className="py-2 tabular text-right">{e.recus}</td>
+                    <td
+                      className={cn(
+                        'py-2 tabular text-right font-medium',
+                        e.manquants > 0 && 'text-critical-text',
+                      )}
+                    >
+                      {e.manquants > 0 ? e.manquants : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {manquantsTotal > 0 && (
+              <p className="text-sm mt-3 text-critical-text font-medium">
+                {manquantsTotal} pièce{manquantsTotal > 1 ? 's' : ''} envoyée
+                {manquantsTotal > 1 ? 's' : ''} chez Elis {manquantsTotal > 1 ? 'ne sont' : "n'est"}{' '}
+                pas revenue{manquantsTotal > 1 ? 's' : ''} dans ce bac.
+              </p>
+            )}
+          </section>
+        )}
 
-        <details className="text-sm">
-          <summary className="cursor-pointer text-ink-3 print:hidden">
-            Détail des {bulletin.lignes.length} codes-barres
-          </summary>
-          <ul className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 tabular text-xs">
-            {bulletin.lignes.map((l) => (
-              <li key={l.code_barre} className="text-ink-2">
-                {l.code_barre}
-              </li>
-            ))}
-          </ul>
-        </details>
+        {/* Détail pièce par pièce, code-barre en tête : c'est la colonne qu'on
+            pointe en dépilant le bac, et celle qui permet de retrouver une
+            pièce contestée dans l'historique. */}
+        <section>
+          <h3 className="text-xs font-semibold uppercase tracking-[0.06em] text-ink-3 mb-2">
+            Détail des {bulletin.lignes.length} pièces
+          </h3>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line-strong text-left text-ink-3">
+                <th className="pb-2 font-medium">Code-barre</th>
+                <th className="pb-2 font-medium">Type</th>
+                <th className="pb-2 font-medium">Taille</th>
+                <th className="pb-2 font-medium text-right">Lavages</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bulletin.lignes.map((l) => (
+                <tr key={l.code_barre} className="border-b border-line/60">
+                  <td className="py-2 tabular font-medium text-[15px]">
+                    {l.code_barre}
+                  </td>
+                  <td className="py-2">
+                    {l.type_libelle}
+                    {l.rebut && <span className="text-ink-3"> (rebut)</span>}
+                  </td>
+                  <td className="py-2 tabular">{l.taille}</td>
+                  <td className="py-2 tabular text-right">{l.nb_lavages}</td>
+                </tr>
+              ))}
+              <tr>
+                <td className="pt-2 font-semibold" colSpan={3}>
+                  Total
+                </td>
+                <td className="pt-2 tabular text-right font-semibold">
+                  {bulletin.nb_recus}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
 
         <div className="mt-10 pt-6 border-t border-line grid grid-cols-2 gap-8 text-xs text-ink-3">
           <div>

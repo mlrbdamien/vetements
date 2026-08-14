@@ -915,15 +915,20 @@ where v.statut = 'sale';
 --
 -- Atomique à dessein. Une expédition est un événement physique unique — un bac
 -- qui part — et le bulletin doit décrire exactement ce qui est parti. Si un
--- vêtement de la liste n'est plus `sale` (un autre poste vient de l'expédier),
--- tout est annulé et le message nomme la pièce : mieux vaut recommencer sur
--- une liste à jour qu'émettre un bulletin qui ne correspond pas au bac.
+-- vêtement de la liste n'est plus `sale`, tout est annulé et le message nomme
+-- la pièce : mieux vaut recommencer sur une liste à jour qu'émettre un
+-- bulletin qui ne correspond pas au bac.
 --
--- Le PIN n'est vérifié qu'UNE fois : bcrypt coûte ~100 ms, le revérifier pour
--- chaque pièce mettrait plusieurs secondes sur un bac de cinquante.
+-- Réservée à l'administratrice, comme l'entrée marchandise : le bulletin part
+-- chez Elis et engage la pharmacie. L'auteur est donc tracé par
+-- cree_par_admin, et non par un opérateur — l'administratrice n'en est pas un.
+--
+-- La signature a changé (l'opérateur et son PIN ont disparu) : sans ce DROP,
+-- la ré-exécution créerait une surcharge et PostgREST ne saurait plus
+-- laquelle appeler.
+drop function if exists enregistrer_expedition(bigint, text, bigint[]);
+
 create or replace function enregistrer_expedition(
-  p_operateur_id bigint,
-  p_pin          text,
   p_vetement_ids bigint[]
 ) returns jsonb language plpgsql security definer
   set search_path = public, extensions, pg_temp as $$
@@ -936,8 +941,8 @@ declare
   v_envoyes  integer := 0;
   v_restants integer;
 begin
-  if not verifier_pin(p_operateur_id, p_pin) then
-    raise exception 'Code PIN incorrect.';
+  if not est_admin() then
+    raise exception 'Seule l''administratrice peut enregistrer une expédition.';
   end if;
 
   v_demandes := coalesce(cardinality(p_vetement_ids), 0);
@@ -967,8 +972,8 @@ begin
         r.code_barre, r.libelle, r.taille, replace(r.statut::text, '_', ' ');
     end if;
 
-    insert into mouvement (vetement_id, type, operateur_id, document_id)
-    values (r.id, 'ENVOI_ELIS', p_operateur_id, v_doc_id);
+    insert into mouvement (vetement_id, type, document_id, cree_par_admin)
+    values (r.id, 'ENVOI_ELIS', v_doc_id, auth.uid());
 
     perform recalculer_vetement(r.id);
     v_envoyes := v_envoyes + 1;
@@ -982,12 +987,38 @@ begin
     'numero',      v_numero,
     'date',        current_date,
     'nb_envoyes',  v_envoyes,
-    'nb_restants', v_restants
+    'nb_restants', v_restants,
+    -- Le détail pièce par pièce : c'est ce que le bulletin imprimé doit
+    -- porter, puisqu'il part avec le bac et fait foi de ce qu'on a confié.
+    'lignes', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+               'code_barre',   vt.code_barre,
+               'type_libelle', t.libelle,
+               'taille',       vt.taille,
+               'rebut',        vt.rebut,
+               'nb_lavages',   vt.nb_lavages)
+             order by vt.code_barre), '[]'::jsonb)
+        from mouvement m
+        join vetement vt on vt.id = m.vetement_id
+        join type_vetement t on t.id = vt.type_id
+       where m.document_id = v_doc_id and m.type = 'ENVOI_ELIS' and not m.annule
+    ),
+    -- Ce qui n'a été ni scanné ni coché. Information interne : ça n'a pas sa
+    -- place sur le papier remis à Elis, mais c'est le signal des égarés.
+    'restants', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+               'code_barre',   code_barre,
+               'type_libelle', type_libelle,
+               'taille',       taille,
+               'jours',        jours_depuis_retour)
+             order by jours_depuis_retour desc), '[]'::jsonb)
+        from v_linge_sale
+    )
   );
 end $$;
 
 grant select on v_linge_sale to authenticated;
-grant execute on function enregistrer_expedition(bigint, text, bigint[]) to authenticated;
+grant execute on function enregistrer_expedition(bigint[]) to authenticated;
 
 
 -- ===========================================================================
@@ -999,6 +1030,11 @@ grant execute on function enregistrer_expedition(bigint, text, bigint[]) to auth
 -- colonne, une réception serait un mouvement sans auteur — or c'est
 -- précisément le mouvement qui sert à contester une facture Elis.
 alter table mouvement add column if not exists cree_par_admin uuid references auth.users (id);
+
+-- Numéro du bon de livraison d'Elis, saisi à la réception. C'est lui qui
+-- permet de rapprocher notre bulletin de leur document quand la facture est
+-- contestée : sans référence commune, les deux papiers ne se parlent pas.
+alter table document add column if not exists reference_elis text;
 
 
 -- Les expéditions auxquelles aucune réception n'est encore rattachée.
@@ -1024,9 +1060,14 @@ order by d.date desc;
 --
 -- p_lignes : [{"code_barre": "...", "type_id": 1, "taille": 3, "rebut": false}]
 -- type_id, taille et rebut ne servent que pour un code-barre inconnu.
+-- Ajouter un argument change la signature : sans ce DROP, la ré-exécution
+-- créerait une seconde surcharge et PostgREST ne saurait plus laquelle appeler.
+drop function if exists enregistrer_reception(jsonb, bigint);
+
 create or replace function enregistrer_reception(
-  p_lignes        jsonb,
-  p_expedition_id bigint default null
+  p_lignes         jsonb,
+  p_expedition_id  bigint default null,
+  p_reference_elis text default null
 ) returns jsonb language plpgsql security definer
   set search_path = public, extensions, pg_temp as $$
 declare
@@ -1060,8 +1101,8 @@ begin
   end if;
 
   v_numero := prochain_numero_document('reception');
-  insert into document (numero, genre, expedition_liee_id)
-  values (v_numero, 'reception', p_expedition_id)
+  insert into document (numero, genre, expedition_liee_id, reference_elis)
+  values (v_numero, 'reception', p_expedition_id, nullif(trim(p_reference_elis), ''))
   returning id into v_doc_id;
 
   for ligne in select * from jsonb_array_elements(p_lignes)
@@ -1124,6 +1165,39 @@ begin
     'nb_crees',    v_crees,
     'nb_laves',    v_laves,
     'expedition',  (select numero from document where id = p_expedition_id),
+    'reference_elis', nullif(trim(p_reference_elis), ''),
+    -- L'écart envoyé / reçu, par type et taille : c'est ce tableau qui fait
+    -- du bulletin un argument face à une facture, et pas seulement un
+    -- récapitulatif de ce qui est arrivé.
+    'ecarts', case when p_expedition_id is null then '[]'::jsonb else (
+      select coalesce(jsonb_agg(jsonb_build_object(
+               'type_libelle', libelle,
+               'taille',       taille,
+               'envoyes',      envoyes,
+               'recus',        recus,
+               'manquants',    envoyes - recus)
+             order by libelle, taille), '[]'::jsonb)
+      from (
+        select t.libelle,
+               coalesce(e.taille, r.taille) as taille,
+               coalesce(e.n, 0) as envoyes,
+               coalesce(r.n, 0) as recus
+          -- Alias `vt` et non `v` : `v` est déjà une variable PL/pgSQL de
+          -- cette fonction, et Postgres refuse l'ambiguïté.
+          from (select vt.type_id, vt.taille, count(*) as n
+                  from mouvement m join vetement vt on vt.id = m.vetement_id
+                 where m.document_id = p_expedition_id
+                   and m.type = 'ENVOI_ELIS' and not m.annule
+                 group by 1, 2) e
+          full outer join (select vt.type_id, vt.taille, count(*) as n
+                  from mouvement m join vetement vt on vt.id = m.vetement_id
+                 where m.document_id = v_doc_id
+                   and m.type = 'RECEPTION' and not m.annule
+                 group by 1, 2) r
+            on r.type_id = e.type_id and r.taille = e.taille
+          join type_vetement t on t.id = coalesce(e.type_id, r.type_id)
+      ) x
+    ) end,
     'lignes',      (
       select coalesce(jsonb_agg(jsonb_build_object(
                'code_barre', vt.code_barre,
@@ -1140,7 +1214,7 @@ begin
 end $$;
 
 grant select on v_expeditions_ouvertes to authenticated;
-grant execute on function enregistrer_reception(jsonb, bigint) to authenticated;
+grant execute on function enregistrer_reception(jsonb, bigint, text) to authenticated;
 
 
 -- ===========================================================================

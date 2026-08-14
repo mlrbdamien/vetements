@@ -128,15 +128,12 @@ export async function listerLingeSale(): Promise<LingeSale[]> {
 /**
  * Un bulletin, N mouvements, une seule transaction : l'expédition est un
  * événement physique unique, et le bulletin doit décrire exactement le bac.
+ *
+ * Réservée à l'administratrice — le bulletin part chez Elis et engage la
+ * pharmacie. D'où l'absence d'opérateur et de PIN : la garde est est_admin().
  */
-export function enregistrerExpedition(
-  operateurId: number,
-  pin: string,
-  vetementIds: number[],
-) {
+export function enregistrerExpedition(vetementIds: number[]) {
   return rpc<ResultatExpedition>('enregistrer_expedition', {
-    p_operateur_id: operateurId,
-    p_pin: pin,
     p_vetement_ids: vetementIds,
   });
 }
@@ -178,6 +175,7 @@ export async function chercherVetement(codeBarre: string) {
 export function enregistrerReception(
   lignes: LigneReception[],
   expeditionId: number | null,
+  referenceElis: string | null,
 ) {
   return rpc<ResultatReception>('enregistrer_reception', {
     p_lignes: lignes.map((l) => ({
@@ -187,6 +185,7 @@ export function enregistrerReception(
       rebut: l.rebut ?? false,
     })),
     p_expedition_id: expeditionId,
+    p_reference_elis: referenceElis,
   });
 }
 

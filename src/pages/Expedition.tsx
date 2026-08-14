@@ -9,15 +9,14 @@ import {
 import {
   CheckCheck,
   PackageCheck,
+  Printer,
   ScanLine,
   Square,
   TriangleAlert,
   Truck,
 } from 'lucide-react';
 import { enregistrerExpedition, listerLingeSale } from '../lib/api';
-import { useOperateur } from '../lib/operateur';
 import type { LingeSale, ResultatExpedition } from '../types';
-import { BandeauOperateur } from '../components/Identification';
 import {
   Alerte,
   Button,
@@ -39,7 +38,6 @@ import {
 const JOURS_SUSPECT = 14;
 
 export function Expedition({ enLigne }: { enLigne: boolean }) {
-  const { operateur, pin } = useOperateur();
   const [linge, setLinge] = useState<LingeSale[]>([]);
   const [coches, setCoches] = useState<Set<number>>(new Set());
   const [code, setCode] = useState('');
@@ -102,13 +100,11 @@ export function Expedition({ enLigne }: { enLigne: boolean }) {
   }, []);
 
   const confirmer = useCallback(async () => {
-    if (!operateur || coches.size === 0 || occupe) return;
+    if (coches.size === 0 || occupe) return;
     setOccupe(true);
     setErreur(null);
     try {
-      setBulletin(
-        await enregistrerExpedition(operateur.id, pin, [...coches]),
-      );
+      setBulletin(await enregistrerExpedition([...coches]));
       await charger();
     } catch (err) {
       setErreur((err as Error).message);
@@ -117,7 +113,7 @@ export function Expedition({ enLigne }: { enLigne: boolean }) {
     } finally {
       setOccupe(false);
     }
-  }, [operateur, pin, coches, occupe, charger]);
+  }, [coches, occupe, charger]);
 
   const restants = useMemo(
     () => linge.filter((l) => !coches.has(l.vetement_id)),
@@ -138,8 +134,6 @@ export function Expedition({ enLigne }: { enLigne: boolean }) {
 
   return (
     <div className="space-y-5">
-      <BandeauOperateur />
-
       <Card>
         <CardHeader
           icon={Truck}
@@ -322,49 +316,120 @@ function BulletinEmis({
 }) {
   return (
     <div className="space-y-5">
-      <Card padded={false}>
-        <div className="bg-good-soft border-b border-good/25 rounded-t-card px-6 py-5">
-          <p className="text-sm font-medium text-good-text uppercase tracking-[0.06em]">
-            Bulletin d'expédition
+      <div className="flex justify-end gap-2 print:hidden">
+        <Button variant="ghost" onClick={() => window.print()}>
+          <Printer size={16} strokeWidth={1.75} />
+          Imprimer
+        </Button>
+        <Button onClick={onSuivant}>Retour à la corbeille</Button>
+      </div>
+
+      <Card className="print:border-0 print:shadow-none">
+        <div className="border-b border-line pb-4 mb-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.06em] text-ink-3">
+            Bulletin d'expédition · Pharmacie 24 · prestataire Elis
           </p>
           <p className="text-3xl font-semibold tracking-[-0.02em] tabular mt-1">
             {bulletin.numero}
           </p>
+          <p className="text-sm text-ink-2 mt-2">
+            {new Date(bulletin.date).toLocaleDateString('fr-CH')} ·{' '}
+            {bulletin.nb_envoyes} pièce{bulletin.nb_envoyes > 1 ? 's' : ''} confiée
+            {bulletin.nb_envoyes > 1 ? 's' : ''} au lavage
+          </p>
         </div>
-        <div className="px-6 py-5">
-          <dl className="grid grid-cols-3 gap-4 text-sm">
-            <div>
-              <dt className="text-ink-3">Date</dt>
-              <dd className="font-medium tabular">
-                {new Date(bulletin.date).toLocaleDateString('fr-CH')}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-ink-3">Pièces envoyées</dt>
-              <dd className="font-medium tabular">{bulletin.nb_envoyes}</dd>
-            </div>
-            <div>
-              <dt className="text-ink-3">Restées en corbeille</dt>
-              <dd className="font-medium tabular">{bulletin.nb_restants}</dd>
-            </div>
-          </dl>
+
+        {/* Code-barre en tête : c'est la colonne qu'on pointe en remplissant
+            le bac, et la référence à citer si une pièce ne revient pas. */}
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-line-strong text-left text-ink-3">
+              <th className="pb-2 font-medium">Code-barre</th>
+              <th className="pb-2 font-medium">Type</th>
+              <th className="pb-2 font-medium">Taille</th>
+              <th className="pb-2 font-medium text-right">Lavages</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bulletin.lignes.map((l) => (
+              <tr key={l.code_barre} className="border-b border-line/60">
+                <td className="py-2 tabular font-medium text-[15px]">
+                  {l.code_barre}
+                </td>
+                <td className="py-2">
+                  {l.type_libelle}
+                  {l.rebut && <span className="text-ink-3"> (rebut)</span>}
+                </td>
+                <td className="py-2 tabular">{l.taille}</td>
+                <td className="py-2 tabular text-right">{l.nb_lavages}</td>
+              </tr>
+            ))}
+            <tr>
+              <td className="pt-2 font-semibold" colSpan={3}>
+                Total confié
+              </td>
+              <td className="pt-2 tabular text-right font-semibold">
+                {bulletin.nb_envoyes}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div className="mt-10 pt-6 border-t border-line grid grid-cols-2 gap-8 text-xs text-ink-3">
+          <div>
+            Remis par
+            <div className="mt-8 border-b border-line-strong" />
+          </div>
+          <div>
+            Date et signature Elis
+            <div className="mt-8 border-b border-line-strong" />
+          </div>
         </div>
       </Card>
 
-      {bulletin.nb_restants > 0 && (
-        <Alerte ton="warning">
-          {bulletin.nb_restants} pièce{bulletin.nb_restants > 1 ? 's' : ''} n'
-          {bulletin.nb_restants > 1 ? 'ont' : 'a'} pas été retrouvée
-          {bulletin.nb_restants > 1 ? 's' : ''} dans le bac. Elle
-          {bulletin.nb_restants > 1 ? 's' : ''} rester
-          {bulletin.nb_restants > 1 ? 'ont' : 'a'} en corbeille et reviendr
-          {bulletin.nb_restants > 1 ? 'ont' : 'a'} au prochain bulletin. Si le
-          compteur de jours continue de monter, la pièce est probablement
-          égarée.
-        </Alerte>
+      {/* Hors du bulletin, et hors de l'impression : ce qui n'est pas parti
+          regarde la pharmacie, pas Elis. C'est le signal des égarés. */}
+      {bulletin.restants.length > 0 && (
+        <Card className="print:hidden">
+          <CardHeader
+            icon={TriangleAlert}
+            title={`${bulletin.restants.length} pièce${
+              bulletin.restants.length > 1 ? 's' : ''
+            } restée${bulletin.restants.length > 1 ? 's' : ''} en corbeille`}
+          />
+          <ul className="text-sm divide-y divide-line">
+            {bulletin.restants.map((r) => (
+              <li
+                key={r.code_barre}
+                className="flex items-center justify-between gap-4 py-2"
+              >
+                <span>
+                  {r.type_libelle}{' '}
+                  <span className="text-ink-3">· taille {r.taille}</span>
+                </span>
+                <span className="flex items-center gap-4">
+                  <span className="tabular text-ink-3">{r.code_barre}</span>
+                  <span
+                    className={cn(
+                      'tabular text-xs w-14 text-right',
+                      (r.jours ?? 0) >= JOURS_SUSPECT
+                        ? 'text-critical-text font-medium'
+                        : 'text-ink-3',
+                    )}
+                  >
+                    {r.jours} j
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-ink-3 mt-4">
+            Ces pièces sont marquées sales dans l'app mais n'étaient pas dans le
+            bac. Elles reviendront au prochain bulletin ; si le compteur de
+            jours continue de monter, elles sont probablement égarées.
+          </p>
+        </Card>
       )}
-
-      <Button onClick={onSuivant}>Retour à la corbeille</Button>
     </div>
   );
 }

@@ -14,7 +14,16 @@
 -- l'interface les affiche tels quels, sans reformulation.
 -- ===========================================================================
 
-create extension if not exists pgcrypto;
+-- pgcrypto, pour crypt() et gen_salt() sur les codes PIN.
+--
+-- Supabase installe ses extensions dans le schéma `extensions`, pas dans
+-- `public`. Une fonction dont le search_path se limite à `public` n'y
+-- trouverait donc pas crypt() — d'où `extensions` dans le search_path de
+-- toutes les fonctions de ce fichier. Sur un Postgres nu, le schéma est créé
+-- ici et l'extension y atterrit : le fichier marche dans les deux cas.
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
+grant usage on schema extensions to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Types énumérés
@@ -52,7 +61,7 @@ create table if not exists administrateur (
 );
 
 create or replace function est_admin() returns boolean
-  language sql stable security definer set search_path = public, pg_temp as $$
+  language sql stable security definer set search_path = public, extensions, pg_temp as $$
   select exists (select 1 from administrateur where user_id = auth.uid());
 $$;
 
@@ -138,7 +147,7 @@ create table if not exists document (
 
 create or replace function prochain_numero_document(p_genre genre_document)
   returns text language plpgsql security definer
-  set search_path = public, pg_temp as $$
+  set search_path = public, extensions, pg_temp as $$
 declare
   v_prefixe text := case p_genre when 'expedition' then 'EXP' else 'REC' end;
   v_annee   text := to_char(current_date, 'YYYY');
@@ -248,7 +257,7 @@ create table if not exists seuil_stock (
 
 create or replace function recalculer_vetement(p_vetement_id bigint)
   returns void language plpgsql security definer
-  set search_path = public, pg_temp as $$
+  set search_path = public, extensions, pg_temp as $$
 declare
   m           record;
   v_statut    statut_vetement := 'nouveau';
@@ -295,7 +304,7 @@ end $$;
 
 create or replace function verifier_pin(p_operateur_id bigint, p_pin text)
   returns boolean language plpgsql stable security definer
-  set search_path = public, pg_temp as $$
+  set search_path = public, extensions, pg_temp as $$
 declare
   o record;
 begin
@@ -336,7 +345,7 @@ create or replace function enregistrer_mouvement(
   p_contexte     text default 'scan',
   p_document_id  bigint default null
 ) returns jsonb language plpgsql security definer
-  set search_path = public, pg_temp as $$
+  set search_path = public, extensions, pg_temp as $$
 declare
   v            record;
   v_type       type_mouvement;
@@ -430,7 +439,7 @@ create or replace function annuler_mouvement(
   p_operateur_id bigint default null,
   p_pin          text default null
 ) returns jsonb language plpgsql security definer
-  set search_path = public, pg_temp as $$
+  set search_path = public, extensions, pg_temp as $$
 declare
   m       record;
   v_admin boolean := est_admin();
@@ -485,7 +494,7 @@ create or replace function creer_vetement(
   p_taille     smallint,
   p_rebut      boolean default false
 ) returns jsonb language plpgsql security definer
-  set search_path = public, pg_temp as $$
+  set search_path = public, extensions, pg_temp as $$
 declare
   v_id bigint;
 begin
@@ -525,7 +534,7 @@ create or replace function creer_operateur(
   p_nom    text,
   p_pin    text
 ) returns jsonb language plpgsql security definer
-  set search_path = public, pg_temp as $$
+  set search_path = public, extensions, pg_temp as $$
 declare
   v_id bigint;
 begin
@@ -552,7 +561,7 @@ create or replace function definir_pin_operateur(
   p_operateur_id bigint,
   p_pin          text
 ) returns void language plpgsql security definer
-  set search_path = public, pg_temp as $$
+  set search_path = public, extensions, pg_temp as $$
 begin
   if not est_admin() then
     raise exception 'Seule l''administratrice peut réinitialiser un code PIN.';
@@ -577,7 +586,7 @@ end $$;
 -- du radar sans que personne ne les réclame.
 create or replace function desactiver_operateur(p_operateur_id bigint)
   returns jsonb language plpgsql security definer
-  set search_path = public, pg_temp as $$
+  set search_path = public, extensions, pg_temp as $$
 declare
   o       record;
   v_count integer;
@@ -604,7 +613,7 @@ end $$;
 
 create or replace function reactiver_operateur(p_operateur_id bigint)
   returns jsonb language plpgsql security definer
-  set search_path = public, pg_temp as $$
+  set search_path = public, extensions, pg_temp as $$
 begin
   if not est_admin() then
     raise exception 'Seule l''administratrice peut réactiver un opérateur.';
@@ -801,9 +810,17 @@ alter table mouvement      enable row level security;
 alter table document       enable row level security;
 alter table seuil_stock    enable row level security;
 
--- La table operateur n'est JAMAIS lisible directement : pas de GRANT SELECT.
--- Le front passe par operateur_public et les RPC.
-revoke all on operateur from anon, authenticated;
+-- Supabase applique des DEFAULT PRIVILEGES qui accordent tout, sur chaque
+-- table nouvellement créée dans `public`, aux rôles anon et authenticated.
+-- On repart donc de zéro et on ne rouvre que ce qui doit l'être. Sans cette
+-- reprise en main, `anon` recevrait des droits qu'aucun GRANT de ce fichier
+-- ne lui a donnés.
+revoke all on all tables in schema public from anon, authenticated;
+
+-- Le projet est créé avec « Automatically expose new tables » DÉSACTIVÉ :
+-- ce fichier doit donc accorder lui-même tout ce dont le client a besoin,
+-- y compris l'accès au schéma.
+grant usage on schema public to authenticated;
 
 grant select on type_vetement, vetement, mouvement, document, seuil_stock to authenticated;
 grant select on operateur_public, v_stock_disponible, v_chez_elis, v_en_utilisation,
@@ -909,7 +926,7 @@ create or replace function enregistrer_expedition(
   p_pin          text,
   p_vetement_ids bigint[]
 ) returns jsonb language plpgsql security definer
-  set search_path = public, pg_temp as $$
+  set search_path = public, extensions, pg_temp as $$
 declare
   r          record;
   v_doc_id   bigint;
@@ -971,3 +988,31 @@ end $$;
 
 grant select on v_linge_sale to authenticated;
 grant execute on function enregistrer_expedition(bigint, text, bigint[]) to authenticated;
+
+
+-- ===========================================================================
+-- Verrouillage final
+--
+-- DOIT rester en dernier : ce bloc retire les droits implicites que Postgres
+-- et Supabase accordent à la création, y compris sur les objets ajoutés par
+-- les lots suivants. Tout GRANT légitime a déjà été posé au-dessus.
+-- ===========================================================================
+
+-- PostgreSQL accorde EXECUTE à PUBLIC sur toute fonction nouvellement créée.
+-- Ces fonctions étant SECURITY DEFINER, les laisser ainsi rendrait
+-- `verifier_pin` appelable SANS ÊTRE CONNECTÉ : un code à 4 chiffres offert à
+-- la force brute depuis l'extérieur.
+revoke execute on all functions in schema public from public, anon;
+
+-- Supabase applique des DEFAULT PRIVILEGES qui accordent tout, sur chaque
+-- table ou vue créée dans `public`, aux rôles anon et authenticated.
+revoke all on all tables in schema public from anon;
+
+-- Et le rempart principal, répété ici pour qu'il survive à tout ajout futur :
+-- pin_hash ne doit jamais être lisible depuis un compte client.
+revoke all on operateur from anon, authenticated;
+
+-- PostgREST met son cache de schéma à jour au signal. Sans ça, une fonction
+-- fraîchement créée peut répondre « not found in schema cache » quelques
+-- minutes durant.
+notify pgrst, 'reload schema';

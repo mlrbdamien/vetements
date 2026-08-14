@@ -6,6 +6,7 @@ import { useEnLigne } from './lib/connexion';
 import { Alerte, cn } from './components/ui';
 import { ExigeOperateur } from './components/Identification';
 import { ExigeAdmin } from './components/ConnexionAdmin';
+import { Aide } from './components/Aide';
 import { Scan } from './pages/Scan';
 import { Expedition } from './pages/Expedition';
 import { Reception } from './pages/Reception';
@@ -93,7 +94,13 @@ function Corps() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-6 lg:px-8 py-7">
+      <main className="max-w-7xl mx-auto px-6 lg:px-8 py-7 flex gap-10">
+        {/* L'aide occupe la marge gauche, restée vide sur un écran de poste.
+            Elle rappelle ce qui ne se devine pas en regardant l'interface :
+            les règles appliquées en base et ce que signifie ne rien faire. */}
+        <Aide onglet={onglet} />
+
+        <div className="flex-1 min-w-0">
         {/* Deux gardes distinctes. Les écrans d'administration demandent un
             compte Supabase Auth nominatif ; les écrans de terrain demandent un
             opérateur identifié par son PIN. Personne ne fait les deux. */}
@@ -117,6 +124,7 @@ function Corps() {
             <Scan enLigne={enLigne} />
           </ExigeOperateur>
         )}
+        </div>
       </main>
     </div>
   );

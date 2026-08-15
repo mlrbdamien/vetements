@@ -4,3 +4,4 @@ dev-dist
 .vite
 .env.local
 .DS_Store
+.env.*.local

@@ -119,6 +119,63 @@ export const AIDES: Record<string, { titre: string; sections: Section[] }> = {
     ],
   },
 
+  parc: {
+    titre: 'Parc',
+    sections: [
+      {
+        titre: 'Chercher une pièce',
+        texte:
+          'Passez la douchette dans le champ, ou tapez quelques caractères du code-barre. Sans terme, tout le parc s’affiche.',
+      },
+      {
+        titre: 'La fiche',
+        texte:
+          'Cliquez une ligne pour l’ouvrir : identité, statut courant, détenteur, nombre de lavages et historique complet.',
+      },
+      {
+        titre: 'Mouvements annulés',
+        texte:
+          'Ils restent visibles, barrés, avec la date et l’auteur de l’annulation. Le journal se corrige, il ne s’efface pas — c’est ce qui le rend opposable.',
+      },
+      {
+        titre: 'Détenteur désactivé',
+        texte:
+          'Signalé en rouge. Ces pièces ne reviendront pas d’elles-mêmes : personne ne les réclame plus.',
+      },
+    ],
+  },
+
+  bord: {
+    titre: 'Tableaux de bord',
+    sections: [
+      {
+        titre: 'Stock et seuils',
+        texte:
+          'La colonne « Seuil » s’édite directement. Sans seuil, aucun manque ne peut être signalé — c’est pour cela que des combinaisons apparaissent sans alerte.',
+      },
+      {
+        titre: 'Les rebuts ne comblent pas un manque',
+        texte:
+          'Ils sont comptés à part : réservés aux stagiaires, ils ne remplacent pas une pièce ordinaire.',
+      },
+      {
+        titre: 'Facturation',
+        texte:
+          'Un bac encore chez Elis n’a pas de manquant, il a un retour à venir. Seuls les envois dont la réception est arrivée produisent un écart chiffré.',
+      },
+      {
+        titre: 'Besoins prévisionnels',
+        texte:
+          'Indicatif seulement. Avant deux à trois mois de données, ces chiffres décrivent le hasard des premières semaines.',
+      },
+      {
+        titre: 'Sauvegarde',
+        texte:
+          'L’onglet Journal produit un classeur réunissant le journal et l’état du parc. Tant que l’hébergement n’offre pas de restauration, ce fichier est la seule sauvegarde — téléchargez-le régulièrement.',
+      },
+    ],
+  },
+
   operateurs: {
     titre: 'Opérateurs',
     sections: [

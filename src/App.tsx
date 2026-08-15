@@ -1,5 +1,13 @@
 import { useState } from 'react';
-import { PackagePlus, ScanLine, Truck, Users, WifiOff } from 'lucide-react';
+import {
+  ChartNoAxesColumn,
+  PackagePlus,
+  ScanLine,
+  Shirt,
+  Truck,
+  Users,
+  WifiOff,
+} from 'lucide-react';
 import { SessionProvider, useSession } from './lib/session';
 import { OperateurProvider } from './lib/operateur';
 import { useEnLigne } from './lib/connexion';
@@ -11,8 +19,16 @@ import { Scan } from './pages/Scan';
 import { Expedition } from './pages/Expedition';
 import { Reception } from './pages/Reception';
 import { AdminOperateurs } from './pages/AdminOperateurs';
+import { Parc } from './pages/Parc';
+import { TableauxDeBord } from './pages/TableauxDeBord';
 
-type Onglet = 'scan' | 'expedition' | 'reception' | 'operateurs';
+type Onglet =
+  | 'scan'
+  | 'expedition'
+  | 'reception'
+  | 'parc'
+  | 'bord'
+  | 'operateurs';
 
 function Corps() {
   const { chargement, erreur, admin } = useSession();
@@ -46,6 +62,17 @@ function Corps() {
     { id: 'scan', libelle: 'Scan', icone: ScanLine },
     { id: 'expedition', libelle: 'Expédition', icone: Truck, admin: true },
     { id: 'reception', libelle: 'Réception', icone: PackagePlus, admin: true },
+    // Le parc et les tableaux de bord suivent le découpage du brief, qui range
+    // la recherche globale et les exports du côté de l'administratrice.
+    // À rediscuter : un opérateur qui cherche où est passée une blouse n'a
+    // aujourd'hui aucun moyen de le savoir sans passer par Annelore.
+    { id: 'parc', libelle: 'Parc', icone: Shirt, admin: true },
+    {
+      id: 'bord',
+      libelle: 'Tableaux de bord',
+      icone: ChartNoAxesColumn,
+      admin: true,
+    },
     { id: 'operateurs', libelle: 'Opérateurs', icone: Users, admin: true },
   ];
 
@@ -117,6 +144,16 @@ function Corps() {
         {onglet === 'expedition' && (
           <ExigeAdmin>
             <Expedition enLigne={enLigne} />
+          </ExigeAdmin>
+        )}
+        {onglet === 'parc' && (
+          <ExigeAdmin>
+            <Parc />
+          </ExigeAdmin>
+        )}
+        {onglet === 'bord' && (
+          <ExigeAdmin>
+            <TableauxDeBord />
           </ExigeAdmin>
         )}
         {onglet === 'scan' && (

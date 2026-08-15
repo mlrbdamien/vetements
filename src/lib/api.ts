@@ -1,7 +1,13 @@
 import { supabase } from './supabase';
 import type {
+  BesoinPrevisionnel,
+  ChezElis,
   ContexteScan,
+  ControleFacturation,
+  EnUtilisation,
   ExpeditionOuverte,
+  LigneHistorique,
+  LigneJournal,
   LigneReception,
   LingeSale,
   Operateur,
@@ -9,7 +15,9 @@ import type {
   ResultatMouvement,
   ResultatReception,
   StatutVetement,
+  StockDisponible,
   TypeVetement,
+  Vetement,
 } from '../types';
 
 /**
@@ -186,6 +194,116 @@ export function enregistrerReception(
     })),
     p_expedition_id: expeditionId,
     p_reference_elis: referenceElis,
+  });
+}
+
+// --- Parc et fiche vêtement ------------------------------------------------
+
+const COLONNES_VETEMENT =
+  'vetement_id, code_barre, type_id, type_libelle, taille, rebut, statut, ' +
+  'nb_lavages, detenteur_id, detenteur, detenteur_actif, cree_le, dernier_mouvement_le';
+
+/**
+ * Recherche dans le parc. Un terme vide renvoie tout le parc — c'est voulu :
+ * l'écran sert autant à chercher une pièce précise qu'à parcourir l'inventaire.
+ */
+export async function chercherParc(terme: string): Promise<Vetement[]> {
+  let q = client().from('v_vetement').select(COLONNES_VETEMENT);
+  const t = terme.trim();
+  if (t) q = q.ilike('code_barre', `*${t}*`);
+
+  const { data, error } = await q.order('code_barre');
+  if (error) throw erreurDeSupabase(error.message, error.code);
+  // Les colonnes sont assemblées à l'exécution : supabase-js ne peut pas
+  // inférer la forme du résultat, d'où le passage par unknown.
+  return (data ?? []) as unknown as Vetement[];
+}
+
+export async function lireVetement(codeBarre: string): Promise<Vetement | null> {
+  const { data, error } = await client()
+    .from('v_vetement')
+    .select(COLONNES_VETEMENT)
+    .eq('code_barre', codeBarre.trim())
+    .maybeSingle();
+  if (error) throw erreurDeSupabase(error.message, error.code);
+  return (data as unknown as Vetement) ?? null;
+}
+
+/** L'historique complet d'une pièce, du plus récent au plus ancien. */
+export async function lireHistorique(vetementId: number) {
+  const { data, error } = await client()
+    .from('v_historique_vetement')
+    .select(
+      'mouvement_id, vetement_id, code_barre, type, horodatage, operateur, ' +
+        'document, annule, annule_le, annule_par, annule_par_admin',
+    )
+    .eq('vetement_id', vetementId)
+    .order('horodatage', { ascending: false });
+  if (error) throw erreurDeSupabase(error.message, error.code);
+  return (data ?? []) as unknown as LigneHistorique[];
+}
+
+// --- Tableaux de bord ------------------------------------------------------
+
+export function lireStockDisponible() {
+  return table<StockDisponible>(
+    'v_stock_disponible',
+    'type_id, type_libelle, taille, disponible, disponible_rebut, ' +
+      'en_utilisation, sale, chez_elis, parc_total, minimum, manque',
+  );
+}
+
+export function lireChezElis() {
+  return table<ChezElis>(
+    'v_chez_elis',
+    'vetement_id, code_barre, type_libelle, taille, rebut, envoye_le, ' +
+      'bulletin_expedition, jours_chez_elis',
+  );
+}
+
+export function lireEnUtilisation() {
+  return table<EnUtilisation>(
+    'v_en_utilisation',
+    'vetement_id, code_barre, type_libelle, taille, rebut, detenteur_id, ' +
+      'detenteur, detenteur_actif, sorti_le, jours_en_utilisation',
+  );
+}
+
+export function lireControleFacturation() {
+  return table<ControleFacturation>(
+    'v_controle_facturation',
+    'bulletin_expedition, date_expedition, bulletin_reception, date_reception, ' +
+      'type_libelle, taille, envoyes, recus, rapproche, manquants',
+  );
+}
+
+export function lireBesoinsPrevisionnels() {
+  return table<BesoinPrevisionnel>(
+    'v_besoins_previsionnels',
+    'type_id, type_libelle, taille, demande_quotidienne, duree_cycle_jours, ' +
+      'parc_reel, parc_recommande, ecart',
+  );
+}
+
+/**
+ * Le journal complet. C'est la sauvegarde de fait : le plan Supabase gratuit
+ * n'offre pas de restauration à un instant donné, et ce journal est ce qui
+ * donne du poids face à une facture Elis contestable.
+ */
+export function lireJournalComplet() {
+  return table<LigneJournal>(
+    'v_journal_complet',
+    'mouvement_id, horodatage, type, code_barre, type_libelle, taille, rebut, ' +
+      'operateur, document, document_genre, annule, annule_le, annule_par, annule_par_admin',
+  );
+}
+
+/** Un minimum à 0 supprime le seuil : une absence de seuil, pas un seuil nul. */
+export function definirSeuil(typeId: number, taille: number, minimum: number) {
+  return rpc<void>('definir_seuil', {
+    p_type_id: typeId,
+    p_taille: taille,
+    p_minimum: minimum,
   });
 }
 

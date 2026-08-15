@@ -41,11 +41,36 @@ défaut partagé.
   un code inconnu, rattachement au bulletin d'expédition, bulletin
   `REC-AAAA-NNNN` imprimable
 
-Restent à faire : fiche vêtement, tableaux de bord, exports CSV/XLSX.
+- Écran Parc : recherche par code-barre, fiche vêtement et historique complet
+- Tableaux de bord : stock et seuils éditables, chez Elis, en utilisation,
+  contrôle de facturation, besoins prévisionnels
+- Exports CSV et XLSX de chaque tableau, et sauvegarde complète en un classeur
+
+Le périmètre du brief est couvert.
 
 Le bulletin s'imprime via le navigateur (`⌘P`), avec une mise en page dédiée —
 pas de bibliothèque PDF. À revoir si un fichier doit être généré sans dialogue,
 par exemple pour un archivage automatique.
+
+## Mode démonstration
+
+`npm run dev:demo` lance l'app contre un Postgres local plutôt que contre
+Supabase, avec un parc fictif de 60 vêtements et 100 jours d'historique — de
+quoi voir les tableaux de bord remplis sans toucher aux vraies données. La
+configuration vit dans `.env.demo.local` et n'écrase jamais `.env.local`.
+
+Les scripts d'amorce sont hors dépôt (Postgres jetable, pont PostgREST).
+
+## Exports
+
+Séparateur point-virgule et BOM UTF-8 pour le CSV : sans l'un Excel met tout
+dans une colonne, sans l'autre les accents se cassent.
+
+SheetJS vient de `cdn.sheetjs.com`, pas de npm — le paquet `xlsx` du registre
+est figé à `0.18.5` et porte deux CVE de lecture de fichier. La dépendance
+apparaît donc sous forme d'URL dans `package.json` ; c'est la méthode
+d'installation officielle. La bibliothèque est chargée à la demande, pas au
+démarrage.
 
 ## Principes à ne pas contourner
 
@@ -84,5 +109,11 @@ devient la sauvegarde de fait — à mettre en place avec le lot d'exports.
 - `JOURS_SUSPECT` dans `src/pages/Expedition.tsx` (14 jours) : au-delà, une
   pièce qui traîne en corbeille est signalée comme probablement égarée. Valeur
   provisoire, la cadence réelle des envois chez Elis n'est pas connue.
-- Les seuils de stock minimum par type et taille (table `seuil_stock`, encore
-  vide).
+- Les seuils de stock minimum par type et taille. La table `seuil_stock` est
+  encore vide en production : tant qu'elle l'est, aucun manque ne peut être
+  signalé. Ils se saisissent depuis la colonne « Seuil » du tableau de bord.
+- `JOURS_UTILISATION_SUSPECT` (21 jours) et `JOURS_ELIS_SUSPECT` (14 jours)
+  dans `src/pages/TableauxDeBord.tsx` : seuils d'alerte visuelle, provisoires.
+- Le parc et les tableaux de bord sont réservés à l'administratrice, comme le
+  prévoit le brief. À rediscuter : un opérateur qui cherche où est passée une
+  blouse n'a aujourd'hui aucun moyen de le savoir seul.

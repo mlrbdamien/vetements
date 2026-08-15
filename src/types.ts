@@ -139,6 +139,128 @@ export interface ResultatReception {
   }[];
 }
 
+/* --- Lot 4 : fiche vêtement et tableaux de bord -------------------------- */
+
+/** Vue `v_vetement` — la fiche, et la surface de recherche du parc. */
+export interface Vetement {
+  vetement_id: number;
+  code_barre: string;
+  type_id: number;
+  type_libelle: string;
+  taille: number;
+  rebut: boolean;
+  statut: StatutVetement;
+  nb_lavages: number;
+  detenteur_id: number | null;
+  detenteur: string | null;
+  detenteur_actif: boolean | null;
+  cree_le: string;
+  dernier_mouvement_le: string | null;
+}
+
+/** Vue `v_historique_vetement` — une ligne par mouvement, annulations comprises. */
+export interface LigneHistorique {
+  mouvement_id: number;
+  vetement_id: number;
+  code_barre: string;
+  type: TypeMouvement;
+  horodatage: string;
+  operateur: string | null;
+  document: string | null;
+  annule: boolean;
+  annule_le: string | null;
+  annule_par: string | null;
+  annule_par_admin: boolean;
+}
+
+export interface StockDisponible {
+  type_id: number;
+  type_libelle: string;
+  taille: number;
+  disponible: number;
+  disponible_rebut: number;
+  en_utilisation: number;
+  sale: number;
+  chez_elis: number;
+  parc_total: number;
+  minimum: number | null;
+  manque: number;
+}
+
+export interface ChezElis {
+  vetement_id: number;
+  code_barre: string;
+  type_libelle: string;
+  taille: number;
+  rebut: boolean;
+  envoye_le: string;
+  bulletin_expedition: string | null;
+  jours_chez_elis: number;
+}
+
+export interface EnUtilisation {
+  vetement_id: number;
+  code_barre: string;
+  type_libelle: string;
+  taille: number;
+  rebut: boolean;
+  detenteur_id: number;
+  detenteur: string;
+  detenteur_actif: boolean;
+  sorti_le: string;
+  jours_en_utilisation: number;
+}
+
+/**
+ * Vue `v_controle_facturation`.
+ *
+ * `rapproche` distingue un bac dont le retour est arrivé d'un bac encore chez
+ * Elis. Sans lui, tout envoi récent apparaîtrait comme une perte, et le seul
+ * chiffre qui sert à contester une facture perdrait toute crédibilité.
+ * `manquants` est donc nul — pas zéro — tant que le retour n'est pas là.
+ */
+export interface ControleFacturation {
+  bulletin_expedition: string;
+  date_expedition: string;
+  bulletin_reception: string | null;
+  date_reception: string | null;
+  type_libelle: string;
+  taille: number;
+  envoyes: number;
+  recus: number;
+  rapproche: boolean;
+  manquants: number | null;
+}
+
+export interface BesoinPrevisionnel {
+  type_id: number;
+  type_libelle: string;
+  taille: number;
+  demande_quotidienne: number;
+  duree_cycle_jours: number;
+  parc_reel: number;
+  parc_recommande: number;
+  ecart: number;
+}
+
+/** Une ligne du journal complet, telle qu'elle part à l'export. */
+export interface LigneJournal {
+  mouvement_id: number;
+  horodatage: string;
+  type: TypeMouvement;
+  code_barre: string;
+  type_libelle: string;
+  taille: number;
+  rebut: boolean;
+  operateur: string | null;
+  document: string | null;
+  document_genre: string | null;
+  annule: boolean;
+  annule_le: string | null;
+  annule_par: string | null;
+  annule_par_admin: boolean;
+}
+
 export const LIBELLE_STATUT: Record<StatutVetement, string> = {
   nouveau: 'Jamais réceptionné',
   en_stock: 'En stock',

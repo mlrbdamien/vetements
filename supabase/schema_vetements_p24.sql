@@ -633,20 +633,41 @@ end $$;
 -- ===========================================================================
 
 -- Stock disponible par type et taille, comparé au seuil minimum.
-create or replace view v_stock_disponible as
+--
+-- La vue part de l'UNION des combinaisons présentes dans le parc et de celles
+-- qui portent un seuil. Partir du seul parc — comme le faisait la première
+-- version — faisait disparaître toute combinaison sans vêtement, et son seuil
+-- avec elle : impossible de voir « il me faut 4 pantalons taille 7 » tant
+-- qu'on n'en possédait aucun, c'est-à-dire exactement quand l'alerte compte.
+--
+-- DROP nécessaire : la liste de colonnes a changé, et CREATE OR REPLACE VIEW
+-- n'accepte ni ajout au milieu ni retrait.
+drop view if exists v_stock_disponible;
+
+create view v_stock_disponible as
+with combinaisons as (
+  select type_id, taille from vetement
+  union
+  select type_id, taille from seuil_stock
+)
 select
-  t.id                                                         as type_id,
-  t.libelle                                                    as type_libelle,
-  v.taille,
-  count(*) filter (where v.statut = 'en_stock' and not v.rebut) as disponible,
-  count(*) filter (where v.statut = 'en_stock' and v.rebut)     as disponible_rebut,
+  t.id      as type_id,
+  t.libelle as type_libelle,
+  c.taille,
+  count(v.id) filter (where v.statut = 'en_stock' and not v.rebut) as disponible,
+  count(v.id) filter (where v.statut = 'en_stock' and v.rebut)     as disponible_rebut,
+  count(v.id) filter (where v.statut = 'en_utilisation')           as en_utilisation,
+  count(v.id) filter (where v.statut = 'sale')                     as sale,
+  count(v.id) filter (where v.statut = 'chez_elis')                as chez_elis,
+  count(v.id)                                                      as parc_total,
   s.minimum,
   greatest(coalesce(s.minimum, 0)
-           - count(*) filter (where v.statut = 'en_stock' and not v.rebut), 0) as manque
-from vetement v
-join type_vetement t on t.id = v.type_id
-left join seuil_stock s on s.type_id = v.type_id and s.taille = v.taille
-group by t.id, t.libelle, v.taille, s.minimum;
+           - count(v.id) filter (where v.statut = 'en_stock' and not v.rebut), 0) as manque
+from combinaisons c
+join type_vetement t on t.id = c.type_id
+left join vetement v on v.type_id = c.type_id and v.taille = c.taille
+left join seuil_stock s on s.type_id = c.type_id and s.taille = c.taille
+group by t.id, t.libelle, c.taille, s.minimum;
 
 comment on view v_stock_disponible is
   'Les vêtements « rebut » sont comptés à part : ils restent dans le parc mais sont réservés aux stagiaires.';
@@ -762,7 +783,11 @@ left join cycles  c on c.type_id = p.type_id and c.taille = p.taille;
 
 -- Contrôle de facturation : envoyés vs reçus, par type et taille, dès qu'un
 -- bulletin de réception est rattaché à son expédition.
-create or replace view v_controle_facturation as
+-- DROP nécessaire : `rapproche` s'insère au milieu de la liste de colonnes, ce
+-- que CREATE OR REPLACE VIEW refuse.
+drop view if exists v_controle_facturation;
+
+create view v_controle_facturation as
 with envoyes as (
   select m.document_id as expedition_id, v.type_id, v.taille, count(*) as envoyes
     from mouvement m join vetement v on v.id = m.vetement_id
@@ -785,7 +810,14 @@ select
   coalesce(e.taille, r.taille) as taille,
   coalesce(e.envoyes, 0) as envoyes,
   coalesce(r.recus, 0)   as recus,
-  coalesce(e.envoyes, 0) - coalesce(r.recus, 0) as manquants
+  -- Un bac encore chez Elis n'a pas de manquant : il a juste un retour à
+  -- venir. Confondre les deux afficherait des dizaines d'écarts fantômes le
+  -- lendemain de chaque envoi — et ruinerait la crédibilité du seul chiffre
+  -- qui sert à contester une facture.
+  (r.reception_id is not null) as rapproche,
+  case when r.reception_id is not null
+       then coalesce(e.envoyes, 0) - coalesce(r.recus, 0)
+  end as manquants
 from envoyes e
 full outer join recus r
   on r.expedition_id = e.expedition_id and r.type_id = e.type_id and r.taille = e.taille
@@ -1215,6 +1247,114 @@ end $$;
 
 grant select on v_expeditions_ouvertes to authenticated;
 grant execute on function enregistrer_reception(jsonb, bigint, text) to authenticated;
+
+
+-- ===========================================================================
+-- Lot 4-5 — Fiche vêtement, tableaux de bord et exports
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- Fiche d'un vêtement, et surface de recherche du parc.
+--
+-- La vue lit `operateur` pour restituer le nom du détenteur. C'est le même
+-- procédé que `operateur_public` : une vue s'exécute avec les droits de son
+-- propriétaire, ce qui permet d'exposer prenom/nom sans jamais accorder de
+-- SELECT sur la table qui porte `pin_hash`.
+-- ---------------------------------------------------------------------------
+
+create or replace view v_vetement as
+select
+  v.id as vetement_id,
+  v.code_barre,
+  v.type_id,
+  t.libelle as type_libelle,
+  v.taille,
+  v.rebut,
+  v.statut,
+  v.nb_lavages,
+  v.detenteur_id,
+  trim(o.prenom || ' ' || o.nom) as detenteur,
+  o.actif as detenteur_actif,
+  v.cree_le,
+  dm.horodatage as dernier_mouvement_le
+from vetement v
+join type_vetement t on t.id = v.type_id
+left join operateur o on o.id = v.detenteur_id
+left join lateral (
+  select max(horodatage) as horodatage
+    from mouvement m
+   where m.vetement_id = v.id and not m.annule
+) dm on true;
+
+
+-- ---------------------------------------------------------------------------
+-- Journal complet, à plat.
+--
+-- `v_historique_vetement` sert la fiche d'une pièce ; celle-ci sert l'export.
+-- Elle porte le type et la taille en clair pour qu'un fichier exporté reste
+-- lisible sans la base — ce qui compte, puisque cet export tient lieu de
+-- sauvegarde tant que le projet Supabase est sur le plan gratuit, dépourvu de
+-- restauration à un instant donné.
+-- ---------------------------------------------------------------------------
+
+create or replace view v_journal_complet as
+select
+  m.id as mouvement_id,
+  m.horodatage,
+  m.type,
+  v.code_barre,
+  t.libelle as type_libelle,
+  v.taille,
+  v.rebut,
+  trim(o.prenom || ' ' || o.nom) as operateur,
+  d.numero as document,
+  d.genre  as document_genre,
+  m.annule,
+  m.annule_le,
+  trim(a.prenom || ' ' || a.nom) as annule_par,
+  (m.annule_admin is not null)   as annule_par_admin
+from mouvement m
+join vetement v on v.id = m.vetement_id
+join type_vetement t on t.id = v.type_id
+left join operateur o on o.id = m.operateur_id
+left join operateur a on a.id = m.annule_par
+left join document d on d.id = m.document_id
+order by m.horodatage, m.id;
+
+
+-- ---------------------------------------------------------------------------
+-- Seuils de stock : upsert et suppression, réservés à l'administratrice.
+--
+-- Un minimum à 0 n'est pas un seuil, c'est une absence de seuil : on supprime
+-- la ligne plutôt que de laisser une contrainte vide fausser `manque`.
+-- ---------------------------------------------------------------------------
+
+create or replace function definir_seuil(
+  p_type_id bigint,
+  p_taille  smallint,
+  p_minimum integer
+) returns void language plpgsql security definer
+  set search_path = public, extensions, pg_temp as $$
+begin
+  if not est_admin() then
+    raise exception 'Seule l''administratrice peut modifier les seuils de stock.';
+  end if;
+  if p_minimum < 0 then
+    raise exception 'Un seuil de stock ne peut pas être négatif.';
+  end if;
+
+  if p_minimum = 0 then
+    delete from seuil_stock where type_id = p_type_id and taille = p_taille;
+  else
+    insert into seuil_stock (type_id, taille, minimum)
+    values (p_type_id, p_taille, p_minimum)
+    on conflict (type_id, taille) do update set minimum = excluded.minimum;
+  end if;
+end $$;
+
+
+grant select on v_vetement, v_journal_complet, v_stock_disponible to authenticated;
+grant execute on function definir_seuil(bigint, smallint, integer) to authenticated;
 
 
 -- ===========================================================================

@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import type {
   BesoinPrevisionnel,
   ChezElis,
+  Compteurs,
   ContexteScan,
   ControleFacturation,
   EnUtilisation,
@@ -195,6 +196,40 @@ export function enregistrerReception(
     p_expedition_id: expeditionId,
     p_reference_elis: referenceElis,
   });
+}
+
+// --- Compteurs de la barre latérale ---------------------------------------
+
+/**
+ * Une seule ligne, une seule requête. La barre latérale les affiche en
+ * permanence : c'est ce qui manquait le plus — on scannait sans jamais voir
+ * l'état du parc.
+ */
+export async function lireCompteurs(): Promise<Compteurs> {
+  const { data, error } = await client()
+    .from('v_compteurs')
+    .select(
+      'en_stock, en_utilisation, sale, chez_elis, parc_total, sous_seuil, ' +
+        'detenteurs_inactifs, expeditions_ouvertes',
+    )
+    .maybeSingle();
+  if (error) throw erreurDeSupabase(error.message, error.code);
+  return data as unknown as Compteurs;
+}
+
+/** Les derniers mouvements, pour le journal de session de l'écran Scan. */
+export async function lireDerniersMouvements(limite = 8) {
+  const { data, error } = await client()
+    .from('v_journal_complet')
+    .select(
+      'mouvement_id, horodatage, type, code_barre, type_libelle, taille, ' +
+        'operateur, document, document_genre, rebut, annule, annule_le, ' +
+        'annule_par, annule_par_admin',
+    )
+    .order('horodatage', { ascending: false })
+    .limit(limite);
+  if (error) throw erreurDeSupabase(error.message, error.code);
+  return (data ?? []) as unknown as LigneJournal[];
 }
 
 // --- Parc et fiche vêtement ------------------------------------------------

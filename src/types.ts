@@ -139,6 +139,21 @@ export interface ResultatReception {
   }[];
 }
 
+/** Vue `v_compteurs` — l'état du parc en une ligne, pour la barre latérale. */
+export interface Compteurs {
+  en_stock: number;
+  en_utilisation: number;
+  sale: number;
+  chez_elis: number;
+  parc_total: number;
+  /** Combinaisons type × taille sous leur seuil minimum. */
+  sous_seuil: number;
+  /** Pièces détenues par un collaborateur désactivé — personne ne les réclame. */
+  detenteurs_inactifs: number;
+  /** Expéditions dont le retour n'est pas encore arrivé. */
+  expeditions_ouvertes: number;
+}
+
 /* --- Lot 4 : fiche vêtement et tableaux de bord -------------------------- */
 
 /** Vue `v_vetement` — la fiche, et la surface de recherche du parc. */

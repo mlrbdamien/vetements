@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { X } from 'lucide-react';
 
 /**
  * Colonne d'aide contextuelle, à gauche du contenu.
@@ -203,28 +204,53 @@ export const AIDES: Record<string, { titre: string; sections: Section[] }> = {
   },
 };
 
-export function Aide({ onglet }: { onglet: string }) {
+/**
+ * Panneau escamotable, ouvert depuis l'en-tête de l'écran.
+ *
+ * L'aide occupait auparavant une colonne fixe à gauche — 25 % de la largeur,
+ * à l'endroit où l'œil se pose en premier. Utile le premier jour, du bruit
+ * dès le troisième, et impossible à faire taire. Elle est désormais là quand
+ * on la demande, et invisible le reste du temps.
+ */
+export function PanneauAide({
+  onglet,
+  ouvert,
+  onFermer,
+}: {
+  onglet: string;
+  ouvert: boolean;
+  onFermer: () => void;
+}) {
   const aide = AIDES[onglet];
-  if (!aide) return null;
+  if (!aide || !ouvert) return null;
 
   return (
-    <aside className="hidden lg:block w-64 shrink-0 print:hidden">
-      <div className="sticky top-7">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-ink-3 mb-4">
-          {aide.titre} — repères
-        </h2>
-        <div className="space-y-5">
-          {aide.sections.map((s) => (
-            <section key={s.titre}>
-              <h3 className="text-[13px] font-medium mb-1">{s.titre}</h3>
-              {typeof s.texte === 'string' ? (
-                <p className="text-xs text-ink-3 leading-relaxed">{s.texte}</p>
-              ) : (
-                s.texte
-              )}
-            </section>
-          ))}
-        </div>
+    <aside className="panneau-aide w-[288px] shrink-0 border-l border-line bg-surface-1 overflow-y-auto">
+      <div className="flex items-center justify-between gap-3 px-5 h-[52px] border-b border-line sticky top-0 bg-surface-1">
+        <h2 className="etiquette">{aide.titre} — repères</h2>
+        <button
+          type="button"
+          onClick={onFermer}
+          aria-label="Fermer les repères"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-control text-ink-3 hover:text-ink hover:bg-surface-2 transition-colors cursor-pointer -mr-1.5"
+        >
+          <X size={15} strokeWidth={1.75} />
+        </button>
+      </div>
+
+      <div className="px-5 py-5 flex flex-col gap-5">
+        {aide.sections.map((s) => (
+          <section key={s.titre}>
+            <h3 className="text-[13px] font-semibold mb-1 tracking-[-0.005em]">
+              {s.titre}
+            </h3>
+            {typeof s.texte === 'string' ? (
+              <p className="text-[12.5px] text-ink-3 leading-relaxed">{s.texte}</p>
+            ) : (
+              s.texte
+            )}
+          </section>
+        ))}
       </div>
     </aside>
   );

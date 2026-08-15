@@ -72,6 +72,21 @@ apparaît donc sous forme d'URL dans `package.json` ; c'est la méthode
 d'installation officielle. La bibliothèque est chargée à la demande, pas au
 démarrage.
 
+## Interface — direction « Console »
+
+Navigation en barre latérale groupée **Terrain** / **Suivi**, avec des compteurs
+vivants et une pastille rouge quand quelque chose demande une décision. Le pied
+de la barre affiche l'état du parc en permanence : c'est ce qui manquait le
+plus, on scannait sans jamais voir le stock, la corbeille ni ce qui dort chez
+Elis.
+
+L'aide n'occupe plus une colonne fixe — elle s'ouvre depuis l'en-tête de chaque
+écran. `⌘K` ouvre une palette pour changer d'écran sans lâcher le clavier.
+
+Accent `#21568C`, le bleu de la blouse. Les neutres penchent vers cet accent
+plutôt que vers un gris pur. Toute donnée machine — code-barre, compteur,
+taille, heure — se compose en chasse fixe et chiffres alignés (classe `donnee`).
+
 ## Principes à ne pas contourner
 
 - **Le journal `mouvement` est la source de vérité.** `vetement.statut`,

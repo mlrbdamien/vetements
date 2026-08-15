@@ -1,20 +1,20 @@
-import { useState } from 'react';
-import {
-  ChartNoAxesColumn,
-  PackagePlus,
-  ScanLine,
-  Shirt,
-  Truck,
-  Users,
-  WifiOff,
-} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 import { SessionProvider, useSession } from './lib/session';
 import { OperateurProvider } from './lib/operateur';
 import { useEnLigne } from './lib/connexion';
-import { Alerte, cn } from './components/ui';
+import { Alerte } from './components/ui';
 import { ExigeOperateur } from './components/Identification';
 import { ExigeAdmin } from './components/ConnexionAdmin';
-import { Aide } from './components/Aide';
+import { PanneauAide } from './components/Aide';
+import {
+  BandeauHorsLigne,
+  EnteteEcran,
+  PaletteCommandes,
+  Rail,
+  TITRES,
+  useCompteurs,
+  type Onglet,
+} from './components/Coquille';
 import { Scan } from './pages/Scan';
 import { Expedition } from './pages/Expedition';
 import { Reception } from './pages/Reception';
@@ -22,22 +22,36 @@ import { AdminOperateurs } from './pages/AdminOperateurs';
 import { Parc } from './pages/Parc';
 import { TableauxDeBord } from './pages/TableauxDeBord';
 
-type Onglet =
-  | 'scan'
-  | 'expedition'
-  | 'reception'
-  | 'parc'
-  | 'bord'
-  | 'operateurs';
-
 function Corps() {
   const { chargement, erreur, admin } = useSession();
   const enLigne = useEnLigne();
   const [onglet, setOnglet] = useState<Onglet>('scan');
+  const [aideOuverte, setAideOuverte] = useState(false);
+  const [paletteOuverte, setPaletteOuverte] = useState(false);
+  const [compteurs, rechargerCompteurs] = useCompteurs();
+
+  // ⌘K / Ctrl+K ouvre la palette. Le champ de scan garde le focus le reste du
+  // temps : on n'intercepte que cette combinaison, jamais une frappe simple,
+  // sinon la douchette déclencherait des raccourcis en scannant.
+  useEffect(() => {
+    const surTouche = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOuverte((o) => !o);
+      }
+    };
+    window.addEventListener('keydown', surTouche);
+    return () => window.removeEventListener('keydown', surTouche);
+  }, []);
+
+  const changerOnglet = useCallback((o: Onglet) => {
+    setOnglet(o);
+    setAideOuverte(false);
+  }, []);
 
   if (chargement) {
     return (
-      <div className="min-h-dvh grid place-items-center text-ink-3">
+      <div className="min-h-dvh grid place-items-center text-ink-3 text-sm">
         Connexion au poste…
       </div>
     );
@@ -53,116 +67,77 @@ function Corps() {
     );
   }
 
-  const onglets: {
-    id: Onglet;
-    libelle: string;
-    icone: typeof ScanLine;
-    admin?: boolean;
-  }[] = [
-    { id: 'scan', libelle: 'Scan', icone: ScanLine },
-    { id: 'expedition', libelle: 'Expédition', icone: Truck, admin: true },
-    { id: 'reception', libelle: 'Réception', icone: PackagePlus, admin: true },
-    // Le parc et les tableaux de bord suivent le découpage du brief, qui range
-    // la recherche globale et les exports du côté de l'administratrice.
-    // À rediscuter : un opérateur qui cherche où est passée une blouse n'a
-    // aujourd'hui aucun moyen de le savoir sans passer par Annelore.
-    { id: 'parc', libelle: 'Parc', icone: Shirt, admin: true },
-    {
-      id: 'bord',
-      libelle: 'Tableaux de bord',
-      icone: ChartNoAxesColumn,
-      admin: true,
-    },
-    { id: 'operateurs', libelle: 'Opérateurs', icone: Users, admin: true },
-  ];
-
   return (
-    <div className="min-h-dvh">
-      {/* Bandeau hors ligne : persistant, pleine largeur, impossible à rater.
-          Le scan est bloqué tant qu'il est affiché. */}
-      {!enLigne && (
-        <div className="bg-critical text-white px-4 py-3 flex items-center justify-center gap-2 font-medium">
-          <WifiOff size={18} strokeWidth={2} />
-          Hors ligne — le scan est suspendu. Rien n'est mis en attente.
-        </div>
-      )}
+    <div className="h-dvh flex flex-col">
+      {!enLigne && <BandeauHorsLigne />}
 
-      <header className="border-b border-line bg-surface-1">
-        <div className="px-6 lg:px-8 py-3.5 flex items-center justify-between gap-6">
-          <div>
-            <h1 className="font-semibold tracking-[-0.01em] whitespace-nowrap">
-              Vêtements de laboratoire
-            </h1>
-            <p className="text-xs text-ink-3">Pharmacie 24 · Elis</p>
+      <div className="flex-1 flex min-h-0">
+        <Rail
+          onglet={onglet}
+          onOnglet={changerOnglet}
+          admin={admin}
+          compteurs={compteurs}
+        />
+
+        <div className="flex-1 flex min-w-0">
+          <div className="flex-1 flex flex-col min-w-0">
+            <EnteteEcran
+              titre={TITRES[onglet]}
+              onAide={() => setAideOuverte((o) => !o)}
+              aideOuverte={aideOuverte}
+            />
+
+            <main className="flex-1 overflow-y-auto px-7 py-6">
+              {/* Deux gardes distinctes. Les écrans d'administration demandent
+                  un compte Supabase Auth nominatif ; les écrans de terrain
+                  demandent un opérateur identifié par son PIN. */}
+              {onglet === 'scan' && (
+                <ExigeOperateur>
+                  <Scan enLigne={enLigne} onMouvement={rechargerCompteurs} />
+                </ExigeOperateur>
+              )}
+              {onglet === 'expedition' && (
+                <ExigeAdmin>
+                  <Expedition enLigne={enLigne} />
+                </ExigeAdmin>
+              )}
+              {onglet === 'reception' && (
+                <ExigeAdmin>
+                  <Reception enLigne={enLigne} />
+                </ExigeAdmin>
+              )}
+              {onglet === 'parc' && (
+                <ExigeAdmin>
+                  <Parc />
+                </ExigeAdmin>
+              )}
+              {onglet === 'bord' && (
+                <ExigeAdmin>
+                  <TableauxDeBord />
+                </ExigeAdmin>
+              )}
+              {onglet === 'operateurs' && (
+                <ExigeAdmin>
+                  <AdminOperateurs />
+                </ExigeAdmin>
+              )}
+            </main>
           </div>
-          <nav className="flex gap-1 shrink-0">
-            {onglets.map((o) => (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => setOnglet(o.id)}
-                className={cn(
-                  'inline-flex items-center gap-2 rounded-control px-3.5 py-2 text-sm font-medium transition-colors cursor-pointer',
-                  onglet === o.id
-                    ? 'bg-accent-soft text-accent'
-                    : 'text-ink-3 hover:text-ink hover:bg-surface-2',
-                )}
-              >
-                <o.icone size={16} strokeWidth={1.75} />
-                {o.libelle}
-                {o.admin && admin && (
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-good-text">
-                    admin
-                  </span>
-                )}
-              </button>
-            ))}
-          </nav>
-        </div>
-      </header>
 
-      <main className="max-w-7xl mx-auto px-6 lg:px-8 py-7 flex gap-10">
-        {/* L'aide occupe la marge gauche, restée vide sur un écran de poste.
-            Elle rappelle ce qui ne se devine pas en regardant l'interface :
-            les règles appliquées en base et ce que signifie ne rien faire. */}
-        <Aide onglet={onglet} />
-
-        <div className="flex-1 min-w-0">
-        {/* Deux gardes distinctes. Les écrans d'administration demandent un
-            compte Supabase Auth nominatif ; les écrans de terrain demandent un
-            opérateur identifié par son PIN. Personne ne fait les deux. */}
-        {onglet === 'operateurs' && (
-          <ExigeAdmin>
-            <AdminOperateurs />
-          </ExigeAdmin>
-        )}
-        {onglet === 'reception' && (
-          <ExigeAdmin>
-            <Reception enLigne={enLigne} />
-          </ExigeAdmin>
-        )}
-        {onglet === 'expedition' && (
-          <ExigeAdmin>
-            <Expedition enLigne={enLigne} />
-          </ExigeAdmin>
-        )}
-        {onglet === 'parc' && (
-          <ExigeAdmin>
-            <Parc />
-          </ExigeAdmin>
-        )}
-        {onglet === 'bord' && (
-          <ExigeAdmin>
-            <TableauxDeBord />
-          </ExigeAdmin>
-        )}
-        {onglet === 'scan' && (
-          <ExigeOperateur>
-            <Scan enLigne={enLigne} />
-          </ExigeOperateur>
-        )}
+          <PanneauAide
+            onglet={onglet}
+            ouvert={aideOuverte}
+            onFermer={() => setAideOuverte(false)}
+          />
         </div>
-      </main>
+      </div>
+
+      <PaletteCommandes
+        ouverte={paletteOuverte}
+        onFermer={() => setPaletteOuverte(false)}
+        onOnglet={changerOnglet}
+        admin={admin}
+      />
     </div>
   );
 }

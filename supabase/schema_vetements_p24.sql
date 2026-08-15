@@ -80,13 +80,21 @@ create table if not exists type_vetement (
   actif    boolean not null default true
 );
 
-insert into type_vetement (libelle, ordre) values
-  ('Blouse bleue',   1),
-  ('Blouse balance', 2),
-  ('Tunique',        3),
-  ('Pantalon',       4),
-  ('Chaussettes',    5)
-on conflict (libelle) do nothing;
+-- Amorce, et seulement l'amorce : on remplit une table vide, on ne réinsère
+-- pas ligne à ligne. Un `on conflict (libelle) do nothing` paraîtrait
+-- équivalent, mais dès qu'un type est renommé depuis l'admin la clé de
+-- conflit change — et la réexécution suivante du schéma ressusciterait
+-- l'ancien libellé.
+insert into type_vetement (libelle, ordre)
+select v.libelle, v.ordre
+  from (values
+    ('Blouse bleue',   1),
+    ('Blouse balance', 2),
+    ('Tunique',        3),
+    ('Pantalon',       4),
+    ('Chaussettes',    5)
+  ) as v(libelle, ordre)
+ where not exists (select 1 from type_vetement);
 
 comment on table type_vetement is
   'Types éditables depuis l''admin — d''où une table plutôt qu''un enum. Les chaussettes portent un code-barre par PAIRE.';
@@ -113,11 +121,18 @@ create table if not exists operateur (
 -- PIN volontairement NULL à l'amorce : pas de code par défaut partagé.
 -- L'administratrice initialise chaque PIN depuis l'écran Opérateurs, et
 -- `verifier_pin` refuse tant que ce n'est pas fait.
-insert into operateur (prenom, nom) values
-  ('Morgan', ''), ('Sébastien', ''), ('Guillaume', ''), ('Alix', ''),
-  ('Anne-Catherine', ''), ('Emily', ''), ('Chantal', ''), ('Tanguy', ''),
-  ('Nicolas', ''), ('Gaël', '')
-on conflict (prenom, nom) do nothing;
+-- Même précaution que pour les types : sans elle, compléter un nom de famille
+-- depuis l'écran Opérateurs ferait réapparaître la ligne d'origine à la
+-- réexécution suivante — et le poste afficherait « Morgan » à côté de
+-- « Morgan Rieder », sans qu'on sache lequel porte quoi.
+insert into operateur (prenom, nom)
+select v.prenom, v.nom
+  from (values
+    ('Morgan', ''), ('Sébastien', ''), ('Guillaume', ''), ('Alix', ''),
+    ('Anne-Catherine', ''), ('Emily', ''), ('Chantal', ''), ('Tanguy', ''),
+    ('Nicolas', ''), ('Gaël', '')
+  ) as v(prenom, nom)
+ where not exists (select 1 from operateur);
 
 create or replace view operateur_public as
   select id, prenom, nom, actif, (pin_hash is not null) as pin_defini
@@ -642,6 +657,12 @@ end $$;
 --
 -- DROP nécessaire : la liste de colonnes a changé, et CREATE OR REPLACE VIEW
 -- n'accepte ni ajout au milieu ni retrait.
+--
+-- `v_compteurs` s'appuie sur cette vue et doit donc tomber d'abord. On le
+-- nomme explicitement plutôt que d'employer CASCADE : ici les deux sont
+-- recréées plus bas dans ce fichier, mais un CASCADE emporterait aussi, sans
+-- prévenir, toute vue ajoutée un jour par quelqu'un d'autre.
+drop view if exists v_compteurs;
 drop view if exists v_stock_disponible;
 
 create view v_stock_disponible as
@@ -1353,7 +1374,33 @@ begin
 end $$;
 
 
-grant select on v_vetement, v_journal_complet, v_stock_disponible to authenticated;
+-- ---------------------------------------------------------------------------
+-- Compteurs de la barre latérale : une ligne, une requête.
+--
+-- N'expose que des alertes SANS seuil arbitraire — « sous le seuil » vient de
+-- `seuil_stock`, qui est une donnée, et « détenteur désactivé » est un fait.
+-- Les alertes exprimées en jours (sorti depuis plus de N jours) restent dans
+-- l'interface, où la constante est définie : les dupliquer ici garantirait
+-- qu'un jour les deux valeurs divergent sans que personne ne s'en aperçoive.
+-- ---------------------------------------------------------------------------
+
+create or replace view v_compteurs as
+select
+  (select count(*) from vetement where statut = 'en_stock')       as en_stock,
+  (select count(*) from vetement where statut = 'en_utilisation') as en_utilisation,
+  (select count(*) from vetement where statut = 'sale')           as sale,
+  (select count(*) from vetement where statut = 'chez_elis')      as chez_elis,
+  (select count(*) from vetement)                                 as parc_total,
+  (select count(*) from v_stock_disponible where manque > 0)      as sous_seuil,
+  (select count(*) from v_en_utilisation where not detenteur_actif) as detenteurs_inactifs,
+  (select count(*) from document
+    where genre = 'expedition'
+      and not exists (select 1 from document r where r.expedition_liee_id = document.id))
+                                                                  as expeditions_ouvertes;
+
+
+grant select on v_vetement, v_journal_complet, v_stock_disponible, v_compteurs
+  to authenticated;
 grant execute on function definir_seuil(bigint, smallint, integer) to authenticated;
 
 

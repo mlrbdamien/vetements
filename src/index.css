@@ -1,44 +1,55 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   Tokens repris de ~/dev/vault : les valeurs brutes vivent sur :root, et
-   @theme les expose à Tailwind pour écrire `bg-surface-1` plutôt que
-   `bg-[var(--surface-1)]`.
+   Direction « Console ».
 
-   Une différence de fond avec vault : ici l'écran est lu debout, à un mètre,
-   par quelqu'un qui tient un bac de linge. D'où les tailles de statut
-   surdimensionnées en bas de fichier.
+   Deux partis pris gouvernent tout le fichier :
+
+   1. Les neutres sont biaisés vers le bleu de l'accent, jamais du gris pur.
+      Un gris neutre a l'air d'un défaut ; un gris qui penche a l'air choisi.
+
+   2. Toute donnée machine — code-barre, compteur, taille, heure — se compose
+      en chasse fixe et en chiffres alignés. C'est ce que cette application
+      manipule : des codes-barres et des bulletins, pas de la prose.
    --------------------------------------------------------------------------- */
 
 :root {
   color-scheme: light;
 
-  --page: #fafafa;
+  /* Surfaces. `rail` est le fond de la barre latérale, en retrait du contenu. */
+  --page: #fcfcfd;
   --surface-1: #ffffff;
-  --surface-2: #f4f4f5;
-  --text-primary: #18181b;
-  --text-secondary: #52525b;
-  --text-muted: #71717a;
-  --border: #e4e4e7;
-  --border-strong: #d4d4d8;
+  --surface-2: #f2f4f6;
+  --rail: #f4f5f7;
 
-  --accent: #2a78d6;
-  --accent-hover: #1c5cab;
-  --accent-soft: #eff5fd;
+  /* Encre et traits, tirés vers le bleu. */
+  --text-primary: #16191e;
+  --text-secondary: #48515c;
+  --text-muted: #8a94a1;
+  --border: #e3e6ea;
+  --border-strong: #c2cad3;
 
-  --good: #0ca30c;
-  --good-text: #047804;
-  --good-soft: #edf8ed;
-  --warning: #fab219;
+  /* Accent : le bleu de la blouse, pas le bleu par défaut d'un formulaire. */
+  --accent: #21568c;
+  --accent-hover: #17416c;
+  --accent-soft: #e8eff8;
+  --accent-ring: #cfe0f2;
+
+  /* Sémantique — distincte de l'accent. */
+  --good: #1f6b4a;
+  --good-text: #1f6b4a;
+  --good-soft: #e7f3ec;
+  --warning: #8a6000;
   --warning-text: #8a6000;
-  --warning-soft: #fef8e7;
-  --serious: #ec835a;
-  --critical: #d03b3b;
-  --critical-text: #b02525;
-  --critical-soft: #fdf0f0;
+  --warning-soft: #fdf2e3;
+  --serious: #c06722;
+  --critical: #c9432b;
+  --critical-text: #a8351f;
+  --critical-soft: #fbeeea;
 
-  --shadow-card: 0 1px 2px rgba(24, 24, 27, 0.04);
-  --shadow-modal: 0 12px 32px -8px rgba(24, 24, 27, 0.18);
+  --shadow-card: 0 1px 2px rgb(22 25 30 / 0.05);
+  --shadow-rail: 0 1px 2px rgb(22 25 30 / 0.07);
+  --shadow-modal: 0 24px 60px -20px rgb(22 25 30 / 0.28);
   --ring: 0 0 0 2px var(--page), 0 0 0 4px var(--accent);
 }
 
@@ -46,32 +57,36 @@
   :root {
     color-scheme: dark;
 
-    --page: #09090b;
-    --surface-1: #18181b;
-    --surface-2: #27272a;
-    --text-primary: #fafafa;
-    --text-secondary: #a1a1aa;
-    --text-muted: #8a8a93;
-    --border: #27272a;
-    --border-strong: #3f3f46;
+    --page: #0f1215;
+    --surface-1: #171b20;
+    --surface-2: #1f252b;
+    --rail: #12161a;
 
-    --accent: #3987e5;
-    --accent-hover: #6da7ec;
-    --accent-soft: #16233a;
+    --text-primary: #edf0f3;
+    --text-secondary: #b3bdc8;
+    --text-muted: #7d8794;
+    --border: #262d34;
+    --border-strong: #38424c;
 
-    --good: #0ca30c;
-    --good-text: #22c55e;
-    --good-soft: #12240f;
-    --warning: #eab308;
-    --warning-text: #fbbf24;
+    --accent: #6fa6e0;
+    --accent-hover: #92bce8;
+    --accent-soft: #16212e;
+    --accent-ring: #1e3a56;
+
+    --good: #5fbf95;
+    --good-text: #5fbf95;
+    --good-soft: #10251c;
+    --warning: #d9a441;
+    --warning-text: #d9a441;
     --warning-soft: #241d08;
-    --serious: #f0956f;
-    --critical: #ef4444;
-    --critical-text: #f87171;
-    --critical-soft: #2a1414;
+    --serious: #e08a4f;
+    --critical: #ef6a52;
+    --critical-text: #f08a75;
+    --critical-soft: #2a1613;
 
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-modal: 0 12px 32px -8px rgba(0, 0, 0, 0.6);
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-rail: 0 1px 2px rgb(0 0 0 / 0.5);
+    --shadow-modal: 0 24px 60px -20px rgb(0 0 0 / 0.7);
   }
 }
 
@@ -79,6 +94,7 @@
   --color-page: var(--page);
   --color-surface-1: var(--surface-1);
   --color-surface-2: var(--surface-2);
+  --color-rail: var(--rail);
   --color-ink: var(--text-primary);
   --color-ink-2: var(--text-secondary);
   --color-ink-3: var(--text-muted);
@@ -98,18 +114,23 @@
   --color-critical-text: var(--critical-text);
   --color-critical-soft: var(--critical-soft);
 
-  --radius-card: 14px;
-  --radius-control: 10px;
+  /* Rayons resserrés : une console n'est pas une application mobile. */
+  --radius-card: 9px;
+  --radius-control: 6px;
 
   --shadow-card: var(--shadow-card);
+  --shadow-rail: var(--shadow-rail);
   --shadow-modal: var(--shadow-modal);
+
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
 }
 
 html,
 body {
   background: var(--page);
   color: var(--text-primary);
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -119,61 +140,47 @@ body {
   border-radius: var(--radius-control);
 }
 
+/* Toute colonne de chiffres s'aligne. */
 .tabular {
   font-variant-numeric: tabular-nums;
 }
 
-/* Le champ de scan : gros caractères espacés, pour qu'un code mal lu se
-   repère d'un coup d'œil avant de valider. */
+/* Donnée machine : code-barre, numéro de bulletin, heure. */
+.donnee {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Intitulé de section ou de colonne. */
+.etiquette {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Le champ de scan : grand, espacé, pour qu'un code mal lu saute aux yeux
+   avant qu'on valide. */
 .champ-scan {
-  font-size: 32px;
-  letter-spacing: 0.08em;
+  font-family: var(--font-mono);
+  font-size: 30px;
+  letter-spacing: 0.09em;
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------------------------------------------------------------------------
-   Impression des bulletins.
+/* Le verdict d'un scan doit se lire debout, à un mètre. */
+.verdict {
+  font-size: 34px;
+  font-weight: 680;
+  letter-spacing: -0.025em;
+  line-height: 1;
+}
 
-   Le bulletin de réception sert au contrôle de la facturation Elis : il est
-   imprimé, annoté, puis classé. Tout ce qui relève de la navigation ou de
-   l'action n'a rien à faire sur la feuille.
-   --------------------------------------------------------------------------- */
 @media print {
-  /* Les couleurs de thème sombre ne s'impriment pas : on force le clair. */
-  :root {
-    color-scheme: light;
-    --page: #ffffff;
-    --surface-1: #ffffff;
-    --surface-2: #ffffff;
-    --text-primary: #000000;
-    --text-secondary: #333333;
-    --text-muted: #555555;
-    --border: #cccccc;
-    --border-strong: #888888;
-    --shadow-card: none;
-  }
-
-  header,
-  nav {
+  .rail-navigation,
+  .panneau-aide {
     display: none !important;
-  }
-
-  main {
-    max-width: none !important;
-    padding: 0 !important;
-  }
-
-  /* Un bulletin ne doit pas être coupé en deux par un saut de page. */
-  table {
-    break-inside: avoid;
-  }
-
-  /* Le détail des codes-barres est replié à l'écran, déplié sur le papier :
-     c'est lui qui permet de pointer le bac pièce par pièce. */
-  details > summary {
-    display: none;
-  }
-  details > ul {
-    display: grid !important;
   }
 }

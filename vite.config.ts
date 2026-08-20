@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-// GitHub Pages sert le site sous /vetements-p24/ ; le workflow de
+// GitHub Pages sert le site sous /vetements/ ; le workflow de
 // déploiement renseigne BASE_PATH. En local, la racine suffit.
 const base = process.env.BASE_PATH ?? '/';
 

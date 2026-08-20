@@ -32,7 +32,7 @@ jobs:
       - run: npm ci
       - run: npm run build:vitrine
         env:
-          BASE_PATH: /vetements-p24/
+          BASE_PATH: /vetements/
       # GitHub Pages ne connaît pas les routes de l'application : sans cette
       # copie, un rechargement sur une URL profonde renverrait un 404.
       - run: cp dist/index.html dist/404.html

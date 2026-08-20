@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import { VITRINE, demo } from './demo';
 import type {
   BesoinPrevisionnel,
-  ChezElis,
+  ChezPrestataire,
   Compteurs,
   ContexteScan,
   ControleFacturation,
@@ -26,7 +26,7 @@ import type {
  * Erreur métier remontée par la base.
  *
  * Les exceptions du schéma sont rédigées en français POUR L'UTILISATEUR :
- * « Ce vêtement est chez Elis depuis le 12.08.2026. » On les affiche telles
+ * « Ce vêtement est chez le prestataire depuis le 12.08.2026. » On les affiche telles
  * quelles. Toute reformulation ici perdrait la date, le nom, le décompte —
  * précisément ce qui rend le message actionnable.
  */
@@ -142,8 +142,8 @@ export async function listerLingeSale(): Promise<LingeSale[]> {
  * Un bulletin, N mouvements, une seule transaction : l'expédition est un
  * événement physique unique, et le bulletin doit décrire exactement le bac.
  *
- * Réservée à l'administratrice — le bulletin part chez Elis et engage la
- * pharmacie. D'où l'absence d'opérateur et de PIN : la garde est est_admin().
+ * Réservée à l'administratrice — le bulletin part chez le prestataire et engage
+ * l'établissement. D'où l'absence d'opérateur et de PIN : la garde est est_admin().
  */
 export function enregistrerExpedition(vetementIds: number[]) {
   return rpc<ResultatExpedition>('enregistrer_expedition', {
@@ -195,7 +195,7 @@ export async function chercherVetement(codeBarre: string) {
 export function enregistrerReception(
   lignes: LigneReception[],
   expeditionId: number | null,
-  referenceElis: string | null,
+  referencePrestataire: string | null,
 ) {
   return rpc<ResultatReception>('enregistrer_reception', {
     p_lignes: lignes.map((l) => ({
@@ -205,7 +205,7 @@ export function enregistrerReception(
       rebut: l.rebut ?? false,
     })),
     p_expedition_id: expeditionId,
-    p_reference_elis: referenceElis,
+    p_reference_prestataire: referencePrestataire,
   });
 }
 
@@ -221,7 +221,7 @@ export async function lireCompteurs(): Promise<Compteurs> {
   const { data, error } = await client()
     .from('v_compteurs')
     .select(
-      'en_stock, en_utilisation, sale, chez_elis, parc_total, sous_seuil, ' +
+      'en_stock, en_utilisation, sale, chez_prestataire, parc_total, sous_seuil, ' +
         'detenteurs_inactifs, expeditions_ouvertes',
     )
     .maybeSingle();
@@ -305,15 +305,15 @@ export function lireStockDisponible() {
   return table<StockDisponible>(
     'v_stock_disponible',
     'type_id, type_libelle, taille, disponible, disponible_rebut, ' +
-      'en_utilisation, sale, chez_elis, parc_total, minimum, manque',
+      'en_utilisation, sale, chez_prestataire, parc_total, minimum, manque',
   );
 }
 
-export function lireChezElis() {
-  return table<ChezElis>(
-    'v_chez_elis',
+export function lireChezPrestataire() {
+  return table<ChezPrestataire>(
+    'v_chez_prestataire',
     'vetement_id, code_barre, type_libelle, taille, rebut, envoye_le, ' +
-      'bulletin_expedition, jours_chez_elis',
+      'bulletin_expedition, jours_chez_prestataire',
   );
 }
 
@@ -344,7 +344,7 @@ export function lireBesoinsPrevisionnels() {
 /**
  * Le journal complet. C'est la sauvegarde de fait : le plan Supabase gratuit
  * n'offre pas de restauration à un instant donné, et ce journal est ce qui
- * donne du poids face à une facture Elis contestable.
+ * donne du poids face à une facture du prestataire contestable.
  */
 export function lireJournalComplet() {
   return table<LigneJournal>(
@@ -452,8 +452,8 @@ function routerVitrineTable(nom: string): Promise<unknown[]> {
       return demo.listerTypes();
     case 'v_stock_disponible':
       return demo.lireStockDisponible();
-    case 'v_chez_elis':
-      return demo.lireChezElis();
+    case 'v_chez_prestataire':
+      return demo.lireChezPrestataire();
     case 'v_en_utilisation':
       return demo.lireEnUtilisation();
     case 'v_linge_sale':

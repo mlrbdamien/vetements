@@ -35,7 +35,7 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
   const [types, setTypes] = useState<TypeVetement[]>([]);
   const [expeditions, setExpeditions] = useState<ExpeditionOuverte[]>([]);
   const [expeditionId, setExpeditionId] = useState<number | null>(null);
-  const [referenceElis, setReferenceElis] = useState('');
+  const [referencePrestataire, setReferencePrestataire] = useState('');
 
   const [lignes, setLignes] = useState<LigneReception[]>([]);
   const [code, setCode] = useState('');
@@ -88,7 +88,7 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
             },
           ]);
         } else {
-          // Elis fournit les vêtements : un code inconnu est le cas normal,
+          // Le prestataire fournit les vêtements : un code inconnu est le cas normal,
           // pas une erreur. On demande de quoi créer la référence.
           setInconnu(c);
         }
@@ -108,7 +108,7 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
     setErreur(null);
     try {
       setBulletin(
-        await enregistrerReception(lignes, expeditionId, referenceElis.trim() || null),
+        await enregistrerReception(lignes, expeditionId, referencePrestataire.trim() || null),
       );
       setLignes([]);
       setExpeditions(await listerExpeditionsOuvertes());
@@ -118,7 +118,7 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
     } finally {
       setOccupe(false);
     }
-  }, [lignes, expeditionId, referenceElis, occupe]);
+  }, [lignes, expeditionId, referencePrestataire, occupe]);
 
   if (bulletin) {
     return (
@@ -127,7 +127,7 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
         onSuivant={() => {
           setBulletin(null);
           setExpeditionId(null);
-          setReferenceElis('');
+          setReferencePrestataire('');
         }}
       />
     );
@@ -169,12 +169,12 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
         </Field>
 
         <Field
-          label="Bon de livraison Elis"
+          label="Bon de livraison du prestataire"
           hint="Leur numéro de document. C'est la référence commune qui permet de rapprocher notre bulletin du leur en cas de litige."
         >
           <input
-            value={referenceElis}
-            onChange={(e) => setReferenceElis(e.target.value)}
+            value={referencePrestataire}
+            onChange={(e) => setReferencePrestataire(e.target.value)}
             className={inputClass}
             placeholder="facultatif"
           />
@@ -368,7 +368,7 @@ function CreationReference({
         <span className="text-sm">
           Rebut
           <span className="block text-xs text-ink-3">
-            Elis l'a jugé hors d'usage mais le rend propre. La pièce reste dans
+            le prestataire l'a jugé hors d'usage mais le rend propre. La pièce reste dans
             le parc et continue son cycle, réservée aux stagiaires.
           </span>
         </span>
@@ -422,7 +422,7 @@ function BulletinReception({
       <Card className="print:border-0 print:shadow-none">
         <div className="border-b border-line pb-4 mb-5">
           <p className="text-xs font-semibold uppercase tracking-[0.06em] text-ink-3">
-            Bulletin de réception · Pharmacie 24 · prestataire Elis
+            Bulletin de réception
           </p>
           <p className="text-3xl font-semibold tracking-[-0.02em] tabular mt-1">
             {bulletin.numero}
@@ -436,11 +436,11 @@ function BulletinReception({
                 <span className="tabular font-medium">{bulletin.expedition}</span>
               </p>
             )}
-            {bulletin.reference_elis && (
+            {bulletin.reference_prestataire && (
               <p>
-                Bon de livraison Elis&nbsp;:{' '}
+                Bon de livraison du prestataire&nbsp;:{' '}
                 <span className="tabular font-medium">
-                  {bulletin.reference_elis}
+                  {bulletin.reference_prestataire}
                 </span>
               </p>
             )}
@@ -505,7 +505,7 @@ function BulletinReception({
             {manquantsTotal > 0 && (
               <p className="text-sm mt-3 text-critical-text font-medium">
                 {manquantsTotal} pièce{manquantsTotal > 1 ? 's' : ''} envoyée
-                {manquantsTotal > 1 ? 's' : ''} chez Elis {manquantsTotal > 1 ? 'ne sont' : "n'est"}{' '}
+                {manquantsTotal > 1 ? 's' : ''} chez le prestataire {manquantsTotal > 1 ? 'ne sont' : "n'est"}{' '}
                 pas revenue{manquantsTotal > 1 ? 's' : ''} dans ce bac.
               </p>
             )}

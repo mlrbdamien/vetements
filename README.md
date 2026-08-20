@@ -1,6 +1,6 @@
-# Vêtements de laboratoire — Pharmacie 24
+# Vêtements de laboratoire
 
-Suivi du parc de vêtements de laboratoire, lavés **et fournis** par Elis.
+Suivi du parc de vêtements de laboratoire, lavés **et fournis** par le prestataire.
 Remplace une base Microsoft Access.
 
 S'ouvre dans un navigateur sur 2–3 postes fixes (aucune installation possible),
@@ -9,7 +9,7 @@ pilotée à la douchette USB en émulation clavier.
 ## Mise en route
 
 1. Créer un projet Supabase dédié, puis exécuter
-   `supabase/schema_vetements_p24.sql` dans le SQL Editor. Le fichier est
+   `supabase/schema_vetements.sql` dans le SQL Editor. Le fichier est
    ré-exécutable.
 2. Créer deux comptes dans **Authentication → Users** :
    - le compte technique de poste (partagé par les 2–3 postes) ;
@@ -19,7 +19,7 @@ pilotée à la douchette USB en émulation clavier.
 
    ```sql
    insert into administrateur (user_id, nom)
-   values ('<uuid du compte d''Annelore>', 'Annelore');
+   values ('<uuid du compte d''l'administratrice>', 'l'administratrice');
    ```
 
 4. Copier `.env.local.example` vers `.env.local` et le remplir.
@@ -42,7 +42,7 @@ défaut partagé.
   `REC-AAAA-NNNN` imprimable
 
 - Écran Parc : recherche par code-barre, fiche vêtement et historique complet
-- Tableaux de bord : stock et seuils éditables, chez Elis, en utilisation,
+- Tableaux de bord : stock et seuils éditables, chez le prestataire, en utilisation,
   contrôle de facturation, besoins prévisionnels
 - Exports CSV et XLSX de chaque tableau, et sauvegarde complète en un classeur
 
@@ -78,7 +78,7 @@ Navigation en barre latérale groupée **Terrain** / **Suivi**, avec des compteu
 vivants et une pastille rouge quand quelque chose demande une décision. Le pied
 de la barre affiche l'état du parc en permanence : c'est ce qui manquait le
 plus, on scannait sans jamais voir le stock, la corbeille ni ce qui dort chez
-Elis.
+le prestataire.
 
 L'aide n'occupe plus une colonne fixe — elle s'ouvre depuis l'en-tête de chaque
 écran. `⌘K` ouvre une palette pour changer d'écran sans lâcher le clavier.
@@ -115,19 +115,19 @@ Projet Supabase dédié, région **Zurich** — les données restent en Suisse.
 **Plan gratuit, assumé pour le moment** (décision d'août 2026). Il n'offre pas
 de restauration à un instant donné, et met le projet en pause après une semaine
 sans activité. Le journal `mouvement` étant ce qui donne du poids face à une
-facture Elis contestable, l'export périodique du journal hors de Supabase
+facture du prestataire contestable, l'export périodique du journal hors de Supabase
 devient la sauvegarde de fait — à mettre en place avec le lot d'exports.
 À rouvrir avant une vraie mise en service.
 
-## Seuils à confirmer avec Annelore
+## Seuils à confirmer avec l'administratrice
 
 - `JOURS_SUSPECT` dans `src/pages/Expedition.tsx` (14 jours) : au-delà, une
   pièce qui traîne en corbeille est signalée comme probablement égarée. Valeur
-  provisoire, la cadence réelle des envois chez Elis n'est pas connue.
+  provisoire, la cadence réelle des envois chez le prestataire n'est pas connue.
 - Les seuils de stock minimum par type et taille. La table `seuil_stock` est
   encore vide en production : tant qu'elle l'est, aucun manque ne peut être
   signalé. Ils se saisissent depuis la colonne « Seuil » du tableau de bord.
-- `JOURS_UTILISATION_SUSPECT` (21 jours) et `JOURS_ELIS_SUSPECT` (14 jours)
+- `JOURS_UTILISATION_SUSPECT` (21 jours) et `JOURS_PRESTATAIRE_SUSPECT` (14 jours)
   dans `src/pages/TableauxDeBord.tsx` : seuils d'alerte visuelle, provisoires.
 - Le parc et les tableaux de bord sont réservés à l'administratrice, comme le
   prévoit le brief. À rediscuter : un opérateur qui cherche où est passée une

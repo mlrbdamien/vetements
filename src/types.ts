@@ -1,17 +1,17 @@
-/** Miroir des enums et vues du schéma `supabase/schema_vetements_p24.sql`. */
+/** Miroir des enums et vues du schéma `supabase/schema_vetements.sql`. */
 
 export type StatutVetement =
   | 'nouveau'
   | 'en_stock'
   | 'en_utilisation'
   | 'sale'
-  | 'chez_elis';
+  | 'chez_prestataire';
 
 export type TypeMouvement =
   | 'RECEPTION'
   | 'SORTIE'
   | 'RETOUR_SALE'
-  | 'ENVOI_ELIS';
+  | 'ENVOI_PRESTATAIRE';
 
 /** Le contexte restreint, côté base, les actions déductibles d'un scan. */
 export type ContexteScan = 'scan' | 'expedition' | 'reception';
@@ -66,7 +66,7 @@ export interface ResultatExpedition {
   nb_envoyes: number;
   /** Ce qui est resté `sale` : ni scanné ni coché, donc absent du bac. */
   nb_restants: number;
-  /** Le contenu du bac, tel qu'il figure sur le bulletin remis à Elis. */
+  /** Le contenu du bac, tel qu'il figure sur le bulletin remis au prestataire. */
   lignes: {
     code_barre: string;
     type_libelle: string;
@@ -74,7 +74,7 @@ export interface ResultatExpedition {
     rebut: boolean;
     nb_lavages: number;
   }[];
-  /** Interne : ce qui n'est pas parti. N'a pas sa place sur le papier Elis. */
+  /** Interne : ce qui n'est pas parti. N'a pas sa place sur le bulletin remis au prestataire. */
   restants: {
     code_barre: string;
     type_libelle: string;
@@ -94,7 +94,7 @@ export interface ExpeditionOuverte {
 
 /**
  * Une pièce du bac reçu. `type_id`, `taille` et `rebut` ne servent qu'aux
- * codes-barres inconnus, que la base crée à la volée : Elis fournit les
+ * codes-barres inconnus, que la base crée à la volée : Le prestataire fournit les
  * vêtements autant qu'il les lave.
  */
 export interface LigneReception {
@@ -120,14 +120,14 @@ export interface ResultatReception {
   document_id: number;
   numero: string;
   date: string;
-  /** Numéro du bon de livraison d'Elis, pour rapprocher les deux papiers. */
-  reference_elis: string | null;
+  /** Numéro du bon de livraison d'le prestataire, pour rapprocher les deux papiers. */
+  reference_prestataire: string | null;
   /** Vide si la réception n'est rattachée à aucune expédition. */
   ecarts: EcartReception[];
   nb_recus: number;
   /** Références créées à la volée, jamais vues auparavant. */
   nb_crees: number;
-  /** Pièces qui revenaient de chez Elis : les seules dont le compteur monte. */
+  /** Pièces qui revenaient de chez le prestataire : les seules dont le compteur monte. */
   nb_laves: number;
   expedition: string | null;
   lignes: {
@@ -144,7 +144,7 @@ export interface Compteurs {
   en_stock: number;
   en_utilisation: number;
   sale: number;
-  chez_elis: number;
+  chez_prestataire: number;
   parc_total: number;
   /** Combinaisons type × taille sous leur seuil minimum. */
   sous_seuil: number;
@@ -196,13 +196,13 @@ export interface StockDisponible {
   disponible_rebut: number;
   en_utilisation: number;
   sale: number;
-  chez_elis: number;
+  chez_prestataire: number;
   parc_total: number;
   minimum: number | null;
   manque: number;
 }
 
-export interface ChezElis {
+export interface ChezPrestataire {
   vetement_id: number;
   code_barre: string;
   type_libelle: string;
@@ -210,7 +210,7 @@ export interface ChezElis {
   rebut: boolean;
   envoye_le: string;
   bulletin_expedition: string | null;
-  jours_chez_elis: number;
+  jours_chez_prestataire: number;
 }
 
 export interface EnUtilisation {
@@ -230,7 +230,7 @@ export interface EnUtilisation {
  * Vue `v_controle_facturation`.
  *
  * `rapproche` distingue un bac dont le retour est arrivé d'un bac encore chez
- * Elis. Sans lui, tout envoi récent apparaîtrait comme une perte, et le seul
+ * le prestataire. Sans lui, tout envoi récent apparaîtrait comme une perte, et le seul
  * chiffre qui sert à contester une facture perdrait toute crédibilité.
  * `manquants` est donc nul — pas zéro — tant que le retour n'est pas là.
  */
@@ -281,14 +281,14 @@ export const LIBELLE_STATUT: Record<StatutVetement, string> = {
   en_stock: 'En stock',
   en_utilisation: 'En utilisation',
   sale: 'Linge sale',
-  chez_elis: 'Chez Elis',
+  chez_prestataire: 'Chez le prestataire',
 };
 
 export const LIBELLE_MOUVEMENT: Record<TypeMouvement, string> = {
   RECEPTION: 'Réception',
   SORTIE: 'Sortie',
   RETOUR_SALE: 'Retour sale',
-  ENVOI_ELIS: 'Envoi chez Elis',
+  ENVOI_PRESTATAIRE: 'Envoi chez le prestataire',
 };
 
 export function nomComplet(o: Pick<Operateur, 'prenom' | 'nom'>): string {

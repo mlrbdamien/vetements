@@ -13,7 +13,7 @@ import {
 import {
   definirSeuil,
   lireBesoinsPrevisionnels,
-  lireChezElis,
+  lireChezPrestataire,
   lireControleFacturation,
   lireEnUtilisation,
   lireJournalComplet,
@@ -24,7 +24,7 @@ import { useSession } from '../lib/session';
 import {
   LIBELLE_MOUVEMENT,
   type BesoinPrevisionnel,
-  type ChezElis,
+  type ChezPrestataire,
   type ControleFacturation,
   type EnUtilisation,
   type LigneJournal,
@@ -35,12 +35,12 @@ import { Alerte, Button, Card, cn, inputClass } from '../components/ui';
 
 /** Au-delà, une pièce restée dehors mérite qu'on la réclame. */
 const JOURS_UTILISATION_SUSPECT = 21;
-/** Au-delà, un séjour chez Elis sort de l'ordinaire et se discute. */
-const JOURS_ELIS_SUSPECT = 14;
+/** Au-delà, un séjour chez le prestataire sort de l'ordinaire et se discute. */
+const JOURS_PRESTATAIRE_SUSPECT = 14;
 
 type Vue =
   | 'stock'
-  | 'elis'
+  | 'prestataire'
   | 'utilisation'
   | 'facturation'
   | 'besoins'
@@ -48,7 +48,7 @@ type Vue =
 
 const VUES: { id: Vue; libelle: string; icone: typeof Boxes }[] = [
   { id: 'stock', libelle: 'Stock', icone: Boxes },
-  { id: 'elis', libelle: 'Chez Elis', icone: Hourglass },
+  { id: 'prestataire', libelle: 'Chez le prestataire', icone: Hourglass },
   { id: 'utilisation', libelle: 'En utilisation', icone: Clock },
   { id: 'facturation', libelle: 'Facturation', icone: FileWarning },
   { id: 'besoins', libelle: 'Besoins', icone: TrendingUp },
@@ -86,7 +86,7 @@ export function TableauxDeBord() {
       {erreur && <Alerte>{erreur}</Alerte>}
 
       {vue === 'stock' && <Stock onErreur={setErreur} />}
-      {vue === 'elis' && <ChezElisVue onErreur={setErreur} />}
+      {vue === 'prestataire' && <ChezPrestataireVue onErreur={setErreur} />}
       {vue === 'utilisation' && <EnUtilisationVue onErreur={setErreur} />}
       {vue === 'facturation' && <Facturation onErreur={setErreur} />}
       {vue === 'besoins' && <Besoins onErreur={setErreur} />}
@@ -144,7 +144,7 @@ function Stock({ onErreur }: { onErreur: (e: string) => void }) {
     { cle: 'disponible_rebut', entete: 'Dont rebut', nombre: true, largeur: 11 },
     { cle: 'en_utilisation', entete: 'En utilisation', nombre: true, largeur: 13 },
     { cle: 'sale', entete: 'Sale', nombre: true, largeur: 8 },
-    { cle: 'chez_elis', entete: 'Chez Elis', nombre: true, largeur: 10 },
+    { cle: 'chez_prestataire', entete: 'Chez le prestataire', nombre: true, largeur: 10 },
     { cle: 'parc_total', entete: 'Parc', nombre: true, largeur: 8 },
     {
       cle: 'minimum',
@@ -266,13 +266,13 @@ function ChampSeuil({
   );
 }
 
-/* --- Chez Elis ------------------------------------------------------------ */
+/* --- Chez le prestataire ------------------------------------------------------------ */
 
-function ChezElisVue({ onErreur }: { onErreur: (e: string) => void }) {
-  const [lignes] = useVue<ChezElis>(lireChezElis, onErreur);
-  const vieux = lignes.filter((l) => l.jours_chez_elis > JOURS_ELIS_SUSPECT);
+function ChezPrestataireVue({ onErreur }: { onErreur: (e: string) => void }) {
+  const [lignes] = useVue<ChezPrestataire>(lireChezPrestataire, onErreur);
+  const vieux = lignes.filter((l) => l.jours_chez_prestataire > JOURS_PRESTATAIRE_SUSPECT);
 
-  const colonnes: ColonneTableau<ChezElis>[] = [
+  const colonnes: ColonneTableau<ChezPrestataire>[] = [
     {
       cle: 'code_barre',
       entete: 'Code-barre',
@@ -294,18 +294,18 @@ function ChezElisVue({ onErreur }: { onErreur: (e: string) => void }) {
       rendu: (l) => <span className="tabular">{formatDate(l.envoye_le)}</span>,
     },
     {
-      cle: 'jours_chez_elis',
+      cle: 'jours_chez_prestataire',
       entete: 'Jours',
       nombre: true,
       largeur: 8,
       rendu: (l) => (
         <span
           className={cn(
-            l.jours_chez_elis > JOURS_ELIS_SUSPECT &&
+            l.jours_chez_prestataire > JOURS_PRESTATAIRE_SUSPECT &&
               'text-critical-text font-semibold',
           )}
         >
-          {l.jours_chez_elis}
+          {l.jours_chez_prestataire}
         </span>
       ),
     },
@@ -313,22 +313,22 @@ function ChezElisVue({ onErreur }: { onErreur: (e: string) => void }) {
 
   return (
     <Tableau
-      titre="Chez Elis"
+      titre="Chez le prestataire"
       description="Chaque pièce actuellement en lavage, et depuis combien de jours. C’est l’argument concret face à une facture qu’on veut discuter."
       colonnes={colonnes}
       lignes={lignes}
       cle={(l) => l.vetement_id}
-      nomExport="chez-elis"
-      vide="Rien n’est actuellement chez Elis."
+      nomExport="chez-prestataire"
+      vide="Rien n’est actuellement chez le prestataire."
       tonLigne={(l) =>
-        l.jours_chez_elis > JOURS_ELIS_SUSPECT ? 'bg-critical-soft/40' : undefined
+        l.jours_chez_prestataire > JOURS_PRESTATAIRE_SUSPECT ? 'bg-critical-soft/40' : undefined
       }
       entete={
         vieux.length > 0 && (
           <p className="flex items-start gap-2 text-sm text-critical-text">
             <TriangleAlert size={16} strokeWidth={1.75} className="shrink-0 mt-0.5" />
-            {vieux.length} pièce(s) sont chez Elis depuis plus de{' '}
-            {JOURS_ELIS_SUSPECT} jours.
+            {vieux.length} pièce(s) sont chez le prestataire depuis plus de{' '}
+            {JOURS_PRESTATAIRE_SUSPECT} jours.
           </p>
         )
       }
@@ -389,7 +389,7 @@ function EnUtilisationVue({ onErreur }: { onErreur: (e: string) => void }) {
   return (
     <Tableau
       titre="En utilisation"
-      description="Qui détient quoi, et depuis quand. Une pièce qui traîne ici n’a jamais été rendue — elle ne repartira jamais chez Elis d’elle-même."
+      description="Qui détient quoi, et depuis quand. Une pièce qui traîne ici n’a jamais été rendue — elle ne repartira jamais chez le prestataire d’elle-même."
       colonnes={colonnes}
       lignes={lignes}
       cle={(l) => l.vetement_id}
@@ -476,7 +476,7 @@ function Facturation({ onErreur }: { onErreur: (e: string) => void }) {
   return (
     <Tableau
       titre="Contrôle de facturation"
-      description="Ce qui est parti face à ce qui est revenu, bulletin par bulletin. Un envoi encore chez Elis n’a pas de manquant : il a un retour à venir."
+      description="Ce qui est parti face à ce qui est revenu, bulletin par bulletin. Un envoi encore chez le prestataire n’a pas de manquant : il a un retour à venir."
       colonnes={colonnes}
       lignes={lignes}
       cle={(l) =>
@@ -651,13 +651,13 @@ function Journal({ onErreur }: { onErreur: (e: string) => void }) {
   async function exporterTout() {
     setOccupe(true);
     try {
-      const [stock, elis, utilisation, facturation] = await Promise.all([
+      const [stock, prestataire, utilisation, facturation] = await Promise.all([
         lireStockDisponible(),
-        lireChezElis(),
+        lireChezPrestataire(),
         lireEnUtilisation(),
         lireControleFacturation(),
       ]);
-      await exporterClasseur('sauvegarde-vetements-p24', [
+      await exporterClasseur('sauvegarde-vetements', [
         { nom: 'Journal', colonnes: colonnes as never[], lignes },
         {
           nom: 'Stock',
@@ -668,7 +668,7 @@ function Journal({ onErreur }: { onErreur: (e: string) => void }) {
             { cle: 'disponible_rebut', entete: 'Dont rebut' },
             { cle: 'en_utilisation', entete: 'En utilisation' },
             { cle: 'sale', entete: 'Sale' },
-            { cle: 'chez_elis', entete: 'Chez Elis' },
+            { cle: 'chez_prestataire', entete: 'Chez le prestataire' },
             { cle: 'parc_total', entete: 'Parc' },
             { cle: 'minimum', entete: 'Seuil' },
             { cle: 'manque', entete: 'Manque' },
@@ -676,16 +676,16 @@ function Journal({ onErreur }: { onErreur: (e: string) => void }) {
           lignes: stock,
         },
         {
-          nom: 'Chez Elis',
+          nom: 'Chez le prestataire',
           colonnes: [
             { cle: 'code_barre', entete: 'Code-barre' },
             { cle: 'type_libelle', entete: 'Type', largeur: 18 },
             { cle: 'taille', entete: 'Taille' },
             { cle: 'bulletin_expedition', entete: 'Bulletin' },
             { cle: 'envoye_le', entete: 'Envoyé le' },
-            { cle: 'jours_chez_elis', entete: 'Jours' },
+            { cle: 'jours_chez_prestataire', entete: 'Jours' },
           ] as never[],
-          lignes: elis,
+          lignes: prestataire,
         },
         {
           nom: 'En utilisation',
@@ -732,7 +732,7 @@ function Journal({ onErreur }: { onErreur: (e: string) => void }) {
               Supabase actuel ne permet pas de restaurer la base à un instant
               donné : tant qu’il en est ainsi, ce fichier <em>est</em> la
               sauvegarde. À télécharger régulièrement et à conserver hors de
-              l’application — c’est aussi lui qui pèsera face à une facture Elis
+              l’application — c’est aussi lui qui pèsera face à une facture du prestataire
               contestée.
             </p>
           </div>

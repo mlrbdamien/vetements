@@ -7,12 +7,12 @@
  *
  * Il n'existe QUE pour la vitrine. La production passe par Supabase, où ces
  * règles sont tenues par la base et non par le navigateur : ici, tout est
- * réécrivable depuis la console, ce qui n'aurait aucun sens en pharmacie.
+ * réécrivable depuis la console, ce qui n'aurait aucun sens sur le terrain.
  * Un rechargement de page remet tout à zéro.
  */
 import type {
   BesoinPrevisionnel,
-  ChezElis,
+  ChezPrestataire,
   Compteurs,
   ContexteScan,
   ControleFacturation,
@@ -131,7 +131,7 @@ function ajouterMouvement(
  * Le parc : 24 pièces réparties sur les cinq types, avec des trajectoires
  * volontairement différentes pour que chaque tableau de bord ait de la matière
  * — des pièces en stock, une sortie qui traîne, une corbeille non vide, un bac
- * encore chez Elis et une pièce jamais revenue du précédent.
+ * encore chez le prestataire et une pièce jamais revenue du précédent.
  */
 function amorcerParc() {
   let id = 1;
@@ -141,7 +141,7 @@ function amorcerParc() {
       for (let k = 0; k < n; k++) {
         VETEMENTS.push({
           id,
-          code_barre: `P24-${String(id).padStart(4, '0')}`,
+          code_barre: `LAB-${String(id).padStart(4, '0')}`,
           type_id: type.id,
           taille,
           rebut: id % 9 === 0,
@@ -162,7 +162,7 @@ function amorcerParc() {
     // Premier cycle complet, du bac parti il y a 24 jours.
     ajouterMouvement(v.id, 'SORTIE', v.id % 2 ? 1 : 2, 34);
     ajouterMouvement(v.id, 'RETOUR_SALE', v.id % 2 ? 1 : 2, 27);
-    ajouterMouvement(v.id, 'ENVOI_ELIS', 1, 24, 1);
+    ajouterMouvement(v.id, 'ENVOI_PRESTATAIRE', 1, 24, 1);
 
     // Une pièce n'est jamais revenue de ce bac : c'est l'écart que le
     // contrôle de facturation doit chiffrer.
@@ -176,7 +176,7 @@ function amorcerParc() {
     if (reste === 1) continue; // encore sortie
     ajouterMouvement(v.id, 'RETOUR_SALE', v.id % 2 ? 2 : 1, 7);
     if (reste === 2) continue; // attend dans la corbeille
-    ajouterMouvement(v.id, 'ENVOI_ELIS', 1, 4, 3);
+    ajouterMouvement(v.id, 'ENVOI_PRESTATAIRE', 1, 4, 3);
   }
 
   VETEMENTS.forEach((v) => recalculer(v.id));
@@ -198,8 +198,8 @@ function recalculer(vetementId: number) {
     .forEach((m) => {
       switch (m.type) {
         case 'RECEPTION':
-          // Le compteur ne monte qu'au retour de chez Elis.
-          if (statut === 'chez_elis') lavages++;
+          // Le compteur ne monte qu'au retour de chez le prestataire.
+          if (statut === 'chez_prestataire') lavages++;
           statut = 'en_stock';
           detenteur = null;
           break;
@@ -211,8 +211,8 @@ function recalculer(vetementId: number) {
           statut = 'sale';
           detenteur = null;
           break;
-        case 'ENVOI_ELIS':
-          statut = 'chez_elis';
+        case 'ENVOI_PRESTATAIRE':
+          statut = 'chez_prestataire';
           detenteur = null;
           break;
       }
@@ -239,7 +239,7 @@ const libelleStatut: Record<StatutVetement, string> = {
   en_stock: 'en stock',
   en_utilisation: 'en utilisation',
   sale: 'linge sale',
-  chez_elis: 'chez Elis',
+  chez_prestataire: 'chez le prestataire',
 };
 
 /* --- API ----------------------------------------------------------------- */
@@ -295,11 +295,11 @@ export const demo = {
       else if (v.statut === 'en_utilisation') type = 'RETOUR_SALE';
       else if (v.statut === 'sale') {
         throw new ErreurVitrine(
-          'Ce vêtement est déjà dans la corbeille du linge sale, il partira au prochain envoi Elis.',
+          'Ce vêtement est déjà dans la corbeille du linge sale, il partira au prochain envoi au prestataire.',
         );
-      } else if (v.statut === 'chez_elis') {
+      } else if (v.statut === 'chez_prestataire') {
         throw new ErreurVitrine(
-          `Ce vêtement est chez Elis depuis le ${dateFr(dernier?.horodatage ?? v.cree_le)}. Il doit être réceptionné avant d'être repris.`,
+          `Ce vêtement est chez le prestataire depuis le ${dateFr(dernier?.horodatage ?? v.cree_le)}. Il doit être réceptionné avant d'être repris.`,
         );
       } else {
         throw new ErreurVitrine(
@@ -309,14 +309,14 @@ export const demo = {
     } else if (contexte === 'expedition') {
       if (v.statut !== 'sale') {
         throw new ErreurVitrine(
-          `Seul le linge sale part chez Elis. Ce vêtement est actuellement « ${libelleStatut[v.statut]} ».`,
+          `Seul le linge sale part chez le prestataire. Ce vêtement est actuellement « ${libelleStatut[v.statut]} ».`,
         );
       }
-      type = 'ENVOI_ELIS';
+      type = 'ENVOI_PRESTATAIRE';
     } else {
-      if (v.statut !== 'nouveau' && v.statut !== 'chez_elis') {
+      if (v.statut !== 'nouveau' && v.statut !== 'chez_prestataire') {
         throw new ErreurVitrine(
-          `Ce vêtement n'était pas chez Elis : il est « ${libelleStatut[v.statut]} ». Réception impossible.`,
+          `Ce vêtement n'était pas chez le prestataire : il est « ${libelleStatut[v.statut]} ». Réception impossible.`,
         );
       }
       type = 'RECEPTION';
@@ -370,7 +370,7 @@ export const demo = {
       en_stock: par('en_stock'),
       en_utilisation: par('en_utilisation'),
       sale: par('sale'),
-      chez_elis: par('chez_elis'),
+      chez_prestataire: par('chez_prestataire'),
       parc_total: VETEMENTS.length,
       sous_seuil: stock.filter((s) => s.manque > 0).length,
       detenteurs_inactifs: VETEMENTS.filter(
@@ -480,7 +480,7 @@ export const demo = {
           disponible_rebut: compte('en_stock', true),
           en_utilisation: compte('en_utilisation'),
           sale: compte('sale'),
-          chez_elis: compte('chez_elis'),
+          chez_prestataire: compte('chez_prestataire'),
           parc_total: lot.length,
           minimum,
           manque: Math.max((minimum ?? 0) - dispo, 0),
@@ -489,10 +489,10 @@ export const demo = {
       .sort((a, b) => a.type_libelle.localeCompare(b.type_libelle) || a.taille - b.taille);
   },
 
-  async lireChezElis(): Promise<ChezElis[]> {
-    return VETEMENTS.filter((v) => v.statut === 'chez_elis').map((v) => {
+  async lireChezPrestataire(): Promise<ChezPrestataire[]> {
+    return VETEMENTS.filter((v) => v.statut === 'chez_prestataire').map((v) => {
       const m = MOUVEMENTS.filter(
-        (x) => x.vetement_id === v.id && x.type === 'ENVOI_ELIS' && !x.annule,
+        (x) => x.vetement_id === v.id && x.type === 'ENVOI_PRESTATAIRE' && !x.annule,
       ).at(-1)!;
       return {
         vetement_id: v.id,
@@ -502,7 +502,7 @@ export const demo = {
         rebut: v.rebut,
         envoye_le: m.horodatage,
         bulletin_expedition: DOCUMENTS.find((d) => d.id === m.document_id)?.numero ?? null,
-        jours_chez_elis: Math.floor((Date.now() - Date.parse(m.horodatage)) / jour),
+        jours_chez_prestataire: Math.floor((Date.now() - Date.parse(m.horodatage)) / jour),
       };
     });
   },
@@ -556,7 +556,7 @@ export const demo = {
     for (const exp of DOCUMENTS.filter((d) => d.genre === 'expedition')) {
       const rec = DOCUMENTS.find((d) => d.expedition_liee_id === exp.id) ?? null;
       const envois = MOUVEMENTS.filter(
-        (m) => m.type === 'ENVOI_ELIS' && m.document_id === exp.id && !m.annule,
+        (m) => m.type === 'ENVOI_PRESTATAIRE' && m.document_id === exp.id && !m.annule,
       );
 
       const groupes = new Map<string, { envoyes: number; recus: number }>();
@@ -591,7 +591,7 @@ export const demo = {
           envoyes: g.envoyes,
           recus: g.recus,
           rapproche: rec !== null,
-          // Un bac encore chez Elis n'a pas de manquant : il a un retour à venir.
+          // Un bac encore chez le prestataire n'a pas de manquant : il a un retour à venir.
           manquants: rec ? g.envoyes - g.recus : null,
         });
       }

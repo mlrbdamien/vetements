@@ -32,8 +32,8 @@ import {
  * être scanné est probablement égaré : il est marqué sale dans l'app mais
  * absent du bac.
  *
- * Seuil provisoire — la cadence réelle des envois chez Elis n'est pas connue.
- * À confirmer avec Annelore une fois quelques bulletins passés.
+ * Seuil provisoire — la cadence réelle des envois chez le prestataire n'est pas connue.
+ * À confirmer avec l'administratrice une fois quelques bulletins passés.
  */
 const JOURS_SUSPECT = 14;
 
@@ -137,7 +137,7 @@ export function Expedition({ enLigne }: { enLigne: boolean }) {
       <Card>
         <CardHeader
           icon={Truck}
-          title="Expédition vers Elis"
+          title="Expédition vers le prestataire"
           action={
             <span className="text-sm text-ink-3 tabular">
               {coches.size} / {linge.length}
@@ -180,7 +180,7 @@ export function Expedition({ enLigne }: { enLigne: boolean }) {
       {linge.length === 0 ? (
         <Card>
           <EmptyState icon={PackageCheck} titre="La corbeille est vide">
-            Rien n'attend de partir chez Elis.
+            Rien n'attend de partir chez le prestataire.
           </EmptyState>
         </Card>
       ) : (
@@ -327,7 +327,7 @@ function BulletinEmis({
       <Card className="print:border-0 print:shadow-none">
         <div className="border-b border-line pb-4 mb-5">
           <p className="text-xs font-semibold uppercase tracking-[0.06em] text-ink-3">
-            Bulletin d'expédition · Pharmacie 24 · prestataire Elis
+            Bulletin d'expédition
           </p>
           <p className="text-3xl font-semibold tracking-[-0.02em] tabular mt-1">
             {bulletin.numero}
@@ -381,14 +381,14 @@ function BulletinEmis({
             <div className="mt-8 border-b border-line-strong" />
           </div>
           <div>
-            Date et signature Elis
+            Date et signature du prestataire
             <div className="mt-8 border-b border-line-strong" />
           </div>
         </div>
       </Card>
 
       {/* Hors du bulletin, et hors de l'impression : ce qui n'est pas parti
-          regarde la pharmacie, pas Elis. C'est le signal des égarés. */}
+          regarde l’établissement, pas le prestataire. C'est le signal des égarés. */}
       {bulletin.restants.length > 0 && (
         <Card className="print:hidden">
           <CardHeader

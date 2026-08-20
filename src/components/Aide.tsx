@@ -12,10 +12,10 @@ import { X } from 'lucide-react';
 type Section = { titre: string; texte: ReactNode };
 
 const CYCLE = [
-  ['Réception', 'Elis livre — la pièce entre en stock'],
+  ['Réception', 'Le prestataire livre — la pièce entre en stock'],
   ['Sortie', 'un opérateur la prend, elle lui est rattachée'],
   ['Retour sale', 'elle rejoint la corbeille'],
-  ['Envoi Elis', 'elle part au lavage'],
+  ['Envoi au prestataire', 'elle part au lavage'],
 ] as const;
 
 function Cycle() {
@@ -49,7 +49,7 @@ export const AIDES: Record<string, { titre: string; sections: Section[] }> = {
       {
         titre: 'Compteur de lavages',
         texte:
-          'Il ne monte qu’au retour de chez Elis. Une pièce neuve qui entre pour la première fois n’a pas été lavée.',
+          'Il ne monte qu’au retour de chez le prestataire. Une pièce neuve qui entre pour la première fois n’a pas été lavée.',
       },
       {
         titre: 'Erreur de scan',
@@ -79,7 +79,7 @@ export const AIDES: Record<string, { titre: string; sections: Section[] }> = {
       {
         titre: 'Le bulletin part avec le bac',
         texte:
-          'Il liste chaque code-barre confié à Elis et porte une zone de signature. C’est la preuve de ce qu’on leur a remis.',
+          'Il liste chaque code-barre confié au prestataire et porte une zone de signature. C’est la preuve de ce qu’on leur a remis.',
       },
       {
         titre: 'Tout ou rien',
@@ -95,7 +95,7 @@ export const AIDES: Record<string, { titre: string; sections: Section[] }> = {
       {
         titre: 'Code-barre inconnu',
         texte:
-          'C’est normal : Elis fournit les vêtements autant qu’il les lave. Une fenêtre s’ouvre pour créer la référence — type, taille, rebut.',
+          'C’est normal : le prestataire fournit les vêtements autant qu’il les lave. Une fenêtre s’ouvre pour créer la référence — type, taille, rebut.',
       },
       {
         titre: 'Rattacher à un envoi',
@@ -103,14 +103,14 @@ export const AIDES: Record<string, { titre: string; sections: Section[] }> = {
           'Sans ce lien, impossible de comparer ce qui est parti à ce qui revient. Le bulletin affichera alors l’écart, pièce manquante comprise.',
       },
       {
-        titre: 'Bon de livraison Elis',
+        titre: 'Bon de livraison du prestataire',
         texte:
           'Leur numéro de document. C’est la référence commune sans laquelle nos deux papiers ne se parlent pas en cas de litige.',
       },
       {
         titre: 'Rebut',
         texte:
-          'Elis a jugé la pièce hors d’usage mais la rend propre. Elle reste dans le parc et continue son cycle, réservée aux stagiaires.',
+          'Le prestataire a jugé la pièce hors d’usage mais la rend propre. Elle reste dans le parc et continue son cycle, réservée aux stagiaires.',
       },
       {
         titre: 'Rien n’est écrit avant validation',
@@ -162,7 +162,7 @@ export const AIDES: Record<string, { titre: string; sections: Section[] }> = {
       {
         titre: 'Facturation',
         texte:
-          'Un bac encore chez Elis n’a pas de manquant, il a un retour à venir. Seuls les envois dont la réception est arrivée produisent un écart chiffré.',
+          'Un bac encore chez le prestataire n’a pas de manquant, il a un retour à venir. Seuls les envois dont la réception est arrivée produisent un écart chiffré.',
       },
       {
         titre: 'Besoins prévisionnels',

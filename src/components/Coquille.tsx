@@ -199,7 +199,7 @@ function EtatParc({ compteurs }: { compteurs: Compteurs }) {
     { l: 'En stock', n: compteurs.en_stock, mal: compteurs.sous_seuil > 0 },
     { l: 'Sorties', n: compteurs.en_utilisation, mal: false },
     { l: 'Corbeille', n: compteurs.sale, mal: false },
-    { l: 'Chez Elis', n: compteurs.chez_elis, mal: false },
+    { l: 'Chez le prestataire', n: compteurs.chez_prestataire, mal: false },
   ];
 
   return (
@@ -286,7 +286,7 @@ export function EnteteEcran({
  * Il dit trois choses qu'une personne extérieure ne peut pas deviner : les
  * données sont fictives, rien n'est enregistré, et voici les codes pour
  * essayer. Sans lui, un stakeholder croirait voir le parc réel de la
- * pharmacie.
+ * l'établissement.
  */
 export function BandeauVitrine() {
   if (!VITRINE) return null;

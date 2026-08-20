@@ -40,9 +40,9 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Vêtements de laboratoire — Pharmacie 24',
-        short_name: 'Vêtements P24',
-        description: 'Suivi du parc de vêtements de laboratoire lavés par Elis',
+        name: 'Vêtements de laboratoire',
+        short_name: 'Vêtements',
+        description: 'Suivi du parc de vêtements de laboratoire lavés par le prestataire',
         lang: 'fr-CH',
         start_url: base,
         scope: base,

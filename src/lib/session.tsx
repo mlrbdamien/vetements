@@ -15,7 +15,7 @@ import { VITRINE } from './demo';
  * Deux niveaux d'identité, à ne pas confondre :
  *
  *  1. La SESSION SUPABASE AUTH — soit le compte technique partagé
- *     « poste pharmacie », ouvert automatiquement au démarrage, soit le compte
+ *     « poste », ouvert automatiquement au démarrage, soit le compte
  *     nominatif de l'administratrice. C'est elle qui satisfait les policies RLS.
  *
  *  2. L'OPÉRATEUR courant — une simple sélection dans une liste, confirmée par

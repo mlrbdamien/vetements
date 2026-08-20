@@ -1,5 +1,5 @@
 -- ===========================================================================
--- Gestion des vêtements de laboratoire — Pharmacie 24
+-- Gestion des vêtements de laboratoire
 -- Schéma Supabase / PostgreSQL
 --
 -- À exécuter dans le SQL Editor du projet Supabase dédié. Le fichier est
@@ -31,12 +31,12 @@ grant usage on schema extensions to authenticated;
 
 do $$ begin
   create type statut_vetement as enum
-    ('nouveau', 'en_stock', 'en_utilisation', 'sale', 'chez_elis');
+    ('nouveau', 'en_stock', 'en_utilisation', 'sale', 'chez_prestataire');
 exception when duplicate_object then null; end $$;
 
 do $$ begin
   create type type_mouvement as enum
-    ('RECEPTION', 'SORTIE', 'RETOUR_SALE', 'ENVOI_ELIS');
+    ('RECEPTION', 'SORTIE', 'RETOUR_SALE', 'ENVOI_PRESTATAIRE');
 exception when duplicate_object then null; end $$;
 
 do $$ begin
@@ -44,11 +44,16 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 
+-- Une fonction ne peut pas voir son paramètre renommé par CREATE OR REPLACE :
+-- on supprime l'ancienne signature avant de la redéfinir plus bas.
+drop function if exists enregistrer_reception(jsonb, bigint, text);
+
+
 -- ---------------------------------------------------------------------------
 -- Administrateurs
 --
 -- L'app tourne sous un compte Supabase Auth technique partagé « poste
--- pharmacie », qui est donc lui aussi `authenticated`. Sans cette table, rien
+-- partagé », qui est donc lui aussi `authenticated`. Sans cette table, rien
 -- ne distinguerait un poste de l'administratrice, et une policy
 -- `to authenticated` laisserait n'importe quel poste créer un opérateur ou
 -- réinitialiser le code PIN d'un collègue.
@@ -202,9 +207,9 @@ create index if not exists idx_vetement_statut on vetement (statut);
 create index if not exists idx_vetement_detenteur on vetement (detenteur_id);
 
 comment on column vetement.rebut is
-  'Elis a jugé le vêtement hors d''usage mais le rend propre : il reste dans le parc, réservé aux stagiaires. Booléen, PAS un statut.';
+  'Le prestataire a jugé le vêtement hors d''usage mais le rend propre : il reste dans le parc, réservé aux stagiaires. Booléen, PAS un statut.';
 comment on column vetement.nb_lavages is
-  'Informatif. Aucun seuil d''usure : la fin de vie est décidée par Elis, pas par la pharmacie.';
+  'Informatif. Aucun seuil d''usure : la fin de vie est décidée par le prestataire, pas par l’établissement.';
 
 
 -- ---------------------------------------------------------------------------
@@ -228,7 +233,7 @@ create index if not exists idx_mouvement_vetement on mouvement (vetement_id, hor
 create index if not exists idx_mouvement_operateur on mouvement (operateur_id, horodatage desc);
 
 -- On n'efface jamais un mouvement : on le marque `annule`. Sinon l'historique
--- qui sert à contester une facture Elis pourrait être réécrit.
+-- qui sert à contester une facture du prestataire pourrait être réécrit.
 create or replace function interdire_suppression_mouvement()
   returns trigger language plpgsql as $$
 begin
@@ -287,9 +292,9 @@ begin
   loop
     case m.type
       when 'RECEPTION' then
-        -- Le compteur ne monte QUE si le vêtement revenait de chez Elis.
+        -- Le compteur ne monte QUE si le vêtement revenait de chez le prestataire.
         -- Un article neuf qui entre pour la première fois n'a pas été lavé.
-        if v_statut = 'chez_elis' then
+        if v_statut = 'chez_prestataire' then
           v_lavages := v_lavages + 1;
         end if;
         v_statut := 'en_stock';
@@ -300,8 +305,8 @@ begin
       when 'RETOUR_SALE' then
         v_statut := 'sale';
         v_detenteur := null;
-      when 'ENVOI_ELIS' then
-        v_statut := 'chez_elis';
+      when 'ENVOI_PRESTATAIRE' then
+        v_statut := 'chez_prestataire';
         v_detenteur := null;
     end case;
   end loop;
@@ -346,7 +351,7 @@ end $$;
 -- L'action n'est PAS choisie par l'utilisateur : elle se déduit du statut
 -- courant du vêtement. Le contexte (l'écran d'où vient le scan) restreint les
 -- déductions autorisées — un vêtement sale scanné depuis l'écran Scan n'a rien
--- à faire là, il attend le prochain envoi Elis.
+-- à faire là, il attend le prochain envoi au prestataire.
 --
 -- La vérification est ici, dans la transaction qui écrit, et pas côté client :
 -- trois postes scannent en parallèle, et un contrôle fait côté navigateur peut
@@ -394,22 +399,22 @@ begin
       when 'nouveau' then
         raise exception 'Ce vêtement n''a jamais été réceptionné. Passez par l''entrée marchandise.';
       when 'sale' then
-        raise exception 'Ce vêtement est déjà dans la corbeille du linge sale, il partira au prochain envoi Elis.';
-      when 'chez_elis' then
-        raise exception 'Ce vêtement est chez Elis depuis le %. Il doit être réceptionné avant d''être repris.',
+        raise exception 'Ce vêtement est déjà dans la corbeille du linge sale, il partira au prochain envoi au prestataire.';
+      when 'chez_prestataire' then
+        raise exception 'Ce vêtement est chez le prestataire depuis le %. Il doit être réceptionné avant d''être repris.',
           to_char(v_depuis, 'DD.MM.YYYY');
     end case;
 
   elsif p_contexte = 'expedition' then
     if v.statut <> 'sale' then
-      raise exception 'Seul le linge sale part chez Elis. Ce vêtement est actuellement « % ».',
+      raise exception 'Seul le linge sale part chez le prestataire. Ce vêtement est actuellement « % ».',
         replace(v.statut::text, '_', ' ');
     end if;
-    v_type := 'ENVOI_ELIS';
+    v_type := 'ENVOI_PRESTATAIRE';
 
   elsif p_contexte = 'reception' then
-    if v.statut not in ('nouveau', 'chez_elis') then
-      raise exception 'Ce vêtement n''était pas chez Elis : il est « % ». Réception impossible.',
+    if v.statut not in ('nouveau', 'chez_prestataire') then
+      raise exception 'Ce vêtement n''était pas chez le prestataire : il est « % ». Réception impossible.',
         replace(v.statut::text, '_', ' ');
     end if;
     v_type := 'RECEPTION';
@@ -499,7 +504,7 @@ end $$;
 
 
 -- ---------------------------------------------------------------------------
--- Création d'une référence — entrée marchandise. Elis fournit les vêtements,
+-- Création d'une référence — entrée marchandise. Le prestataire fournit les vêtements,
 -- un bac contient donc des codes-barres encore inconnus de la base.
 -- ---------------------------------------------------------------------------
 
@@ -679,7 +684,7 @@ select
   count(v.id) filter (where v.statut = 'en_stock' and v.rebut)     as disponible_rebut,
   count(v.id) filter (where v.statut = 'en_utilisation')           as en_utilisation,
   count(v.id) filter (where v.statut = 'sale')                     as sale,
-  count(v.id) filter (where v.statut = 'chez_elis')                as chez_elis,
+  count(v.id) filter (where v.statut = 'chez_prestataire')                as chez_prestataire,
   count(v.id)                                                      as parc_total,
   s.minimum,
   greatest(coalesce(s.minimum, 0)
@@ -694,23 +699,23 @@ comment on view v_stock_disponible is
   'Les vêtements « rebut » sont comptés à part : ils restent dans le parc mais sont réservés aux stagiaires.';
 
 
--- Chez Elis depuis X jours — l'argument concret face à une facture contestable.
-create or replace view v_chez_elis as
+-- Chez le prestataire depuis X jours — l'argument concret face à une facture contestable.
+create or replace view v_chez_prestataire as
 select
   v.id as vetement_id, v.code_barre, t.libelle as type_libelle, v.taille, v.rebut,
   m.horodatage as envoye_le,
   d.numero     as bulletin_expedition,
-  (current_date - m.horodatage::date) as jours_chez_elis
+  (current_date - m.horodatage::date) as jours_chez_prestataire
 from vetement v
 join type_vetement t on t.id = v.type_id
 join lateral (
   select horodatage, document_id
     from mouvement
-   where vetement_id = v.id and type = 'ENVOI_ELIS' and not annule
+   where vetement_id = v.id and type = 'ENVOI_PRESTATAIRE' and not annule
    order by horodatage desc limit 1
 ) m on true
 left join document d on d.id = m.document_id
-where v.statut = 'chez_elis';
+where v.statut = 'chez_prestataire';
 
 
 -- En utilisation depuis X jours — repère les vêtements jamais rendus.
@@ -773,7 +778,7 @@ demande as (
 ),
 intervalles as (
   -- Durée d'un cycle : intervalle entre deux réceptions successives du même
-  -- vêtement, c'est-à-dire sortie + utilisation + attente + lavage chez Elis.
+  -- vêtement, c'est-à-dire sortie + utilisation + attente + lavage chez le prestataire.
   -- Le lag() doit être calculé avant l'agrégation, d'où les deux étages.
   select v.type_id, v.taille,
          m.horodatage - lag(m.horodatage)
@@ -812,7 +817,7 @@ create view v_controle_facturation as
 with envoyes as (
   select m.document_id as expedition_id, v.type_id, v.taille, count(*) as envoyes
     from mouvement m join vetement v on v.id = m.vetement_id
-   where m.type = 'ENVOI_ELIS' and not m.annule and m.document_id is not null
+   where m.type = 'ENVOI_PRESTATAIRE' and not m.annule and m.document_id is not null
    group by 1, 2, 3
 ),
 recus as (
@@ -831,7 +836,7 @@ select
   coalesce(e.taille, r.taille) as taille,
   coalesce(e.envoyes, 0) as envoyes,
   coalesce(r.recus, 0)   as recus,
-  -- Un bac encore chez Elis n'a pas de manquant : il a juste un retour à
+  -- Un bac encore chez le prestataire n'a pas de manquant : il a juste un retour à
   -- venir. Confondre les deux afficherait des dizaines d'écarts fantômes le
   -- lendemain de chaque envoi — et ruinerait la crédibilité du seul chiffre
   -- qui sert à contester une facture.
@@ -876,7 +881,7 @@ revoke all on all tables in schema public from anon, authenticated;
 grant usage on schema public to authenticated;
 
 grant select on type_vetement, vetement, mouvement, document, seuil_stock to authenticated;
-grant select on operateur_public, v_stock_disponible, v_chez_elis, v_en_utilisation,
+grant select on operateur_public, v_stock_disponible, v_chez_prestataire, v_en_utilisation,
                 v_historique_vetement, v_besoins_previsionnels, v_controle_facturation
       to authenticated;
 grant select on administrateur to authenticated;
@@ -937,7 +942,7 @@ grant execute on function
 
 
 -- ===========================================================================
--- Lot 2 — Expédition vers Elis
+-- Lot 2 — Expédition vers le prestataire
 -- ===========================================================================
 
 -- La corbeille du linge sale, telle qu'elle s'affiche à l'écran Expédition.
@@ -973,7 +978,7 @@ where v.statut = 'sale';
 -- bulletin qui ne correspond pas au bac.
 --
 -- Réservée à l'administratrice, comme l'entrée marchandise : le bulletin part
--- chez Elis et engage la pharmacie. L'auteur est donc tracé par
+-- chez le prestataire et engage l’établissement. L'auteur est donc tracé par
 -- cree_par_admin, et non par un opérateur — l'administratrice n'en est pas un.
 --
 -- La signature a changé (l'opérateur et son PIN ont disparu) : sans ce DROP,
@@ -1019,14 +1024,14 @@ begin
      order by v.code_barre
   loop
     -- Même règle que enregistrer_mouvement(..., 'expedition') : seul le linge
-    -- sale part chez Elis.
+    -- sale part chez le prestataire.
     if r.statut <> 'sale' then
       raise exception '% (% taille %) n''est plus dans la corbeille : il est « % ». Rien n''a été envoyé, rafraîchissez la liste.',
         r.code_barre, r.libelle, r.taille, replace(r.statut::text, '_', ' ');
     end if;
 
     insert into mouvement (vetement_id, type, document_id, cree_par_admin)
-    values (r.id, 'ENVOI_ELIS', v_doc_id, auth.uid());
+    values (r.id, 'ENVOI_PRESTATAIRE', v_doc_id, auth.uid());
 
     perform recalculer_vetement(r.id);
     v_envoyes := v_envoyes + 1;
@@ -1054,10 +1059,10 @@ begin
         from mouvement m
         join vetement vt on vt.id = m.vetement_id
         join type_vetement t on t.id = vt.type_id
-       where m.document_id = v_doc_id and m.type = 'ENVOI_ELIS' and not m.annule
+       where m.document_id = v_doc_id and m.type = 'ENVOI_PRESTATAIRE' and not m.annule
     ),
     -- Ce qui n'a été ni scanné ni coché. Information interne : ça n'a pas sa
-    -- place sur le papier remis à Elis, mais c'est le signal des égarés.
+    -- place sur le papier remis au prestataire, mais c'est le signal des égarés.
     'restants', (
       select coalesce(jsonb_agg(jsonb_build_object(
                'code_barre',   code_barre,
@@ -1081,13 +1086,13 @@ grant execute on function enregistrer_expedition(bigint[]) to authenticated;
 -- L'entrée marchandise est faite par l'administratrice, qui n'est PAS un
 -- opérateur : elle n'a ni ligne dans `operateur` ni code PIN. Sans cette
 -- colonne, une réception serait un mouvement sans auteur — or c'est
--- précisément le mouvement qui sert à contester une facture Elis.
+-- précisément le mouvement qui sert à contester une facture du prestataire.
 alter table mouvement add column if not exists cree_par_admin uuid references auth.users (id);
 
--- Numéro du bon de livraison d'Elis, saisi à la réception. C'est lui qui
+-- Numéro du bon de livraison d'le prestataire, saisi à la réception. C'est lui qui
 -- permet de rapprocher notre bulletin de leur document quand la facture est
 -- contestée : sans référence commune, les deux papiers ne se parlent pas.
-alter table document add column if not exists reference_elis text;
+alter table document add column if not exists reference_prestataire text;
 
 
 -- Les expéditions auxquelles aucune réception n'est encore rattachée.
@@ -1097,7 +1102,7 @@ create or replace view v_expeditions_ouvertes as
 select
   d.id, d.numero, d.date,
   (select count(*) from mouvement m
-    where m.document_id = d.id and m.type = 'ENVOI_ELIS' and not m.annule) as nb_envoyes,
+    where m.document_id = d.id and m.type = 'ENVOI_PRESTATAIRE' and not m.annule) as nb_envoyes,
   (current_date - d.date) as jours
 from document d
 where d.genre = 'expedition'
@@ -1107,7 +1112,7 @@ order by d.date desc;
 
 -- Enregistre un bac reçu : un bulletin, N réceptions, une transaction.
 --
--- Elis FOURNIT les vêtements autant qu'il les lave : un bac contient donc des
+-- le prestataire FOURNIT les vêtements autant qu'il les lave : un bac contient donc des
 -- codes-barres encore inconnus. Chaque ligne porte de quoi créer la référence
 -- à la volée si besoin (type, taille, rebut).
 --
@@ -1120,7 +1125,7 @@ drop function if exists enregistrer_reception(jsonb, bigint);
 create or replace function enregistrer_reception(
   p_lignes         jsonb,
   p_expedition_id  bigint default null,
-  p_reference_elis text default null
+  p_reference_prestataire text default null
 ) returns jsonb language plpgsql security definer
   set search_path = public, extensions, pg_temp as $$
 declare
@@ -1154,8 +1159,8 @@ begin
   end if;
 
   v_numero := prochain_numero_document('reception');
-  insert into document (numero, genre, expedition_liee_id, reference_elis)
-  values (v_numero, 'reception', p_expedition_id, nullif(trim(p_reference_elis), ''))
+  insert into document (numero, genre, expedition_liee_id, reference_prestataire)
+  values (v_numero, 'reception', p_expedition_id, nullif(trim(p_reference_prestataire), ''))
   returning id into v_doc_id;
 
   for ligne in select * from jsonb_array_elements(p_lignes)
@@ -1178,7 +1183,7 @@ begin
      where vt.code_barre = v_code;
 
     if not found then
-      -- Code-barre inconnu : Elis livre du neuf, on crée la référence.
+      -- Code-barre inconnu : Le prestataire livre du neuf, on crée la référence.
       if (ligne ->> 'type_id') is null or (ligne ->> 'taille') is null then
         raise exception 'Le code-barre % est inconnu : indiquez son type et sa taille pour le créer.',
           v_code;
@@ -1191,13 +1196,13 @@ begin
       returning id into v_vet_id;
       v_crees := v_crees + 1;
     else
-      if v.statut not in ('nouveau', 'chez_elis') then
-        raise exception '% (% taille %) n''était pas chez Elis : il est « % ». Rien n''a été réceptionné.',
+      if v.statut not in ('nouveau', 'chez_prestataire') then
+        raise exception '% (% taille %) n''était pas chez le prestataire : il est « % ». Rien n''a été réceptionné.',
           v_code, v.libelle, v.taille, replace(v.statut::text, '_', ' ');
       end if;
       -- Le compteur ne montera que pour celui-ci : un article neuf n'a pas
       -- été lavé. C'est recalculer_vetement qui applique la règle.
-      if v.statut = 'chez_elis' then
+      if v.statut = 'chez_prestataire' then
         v_laves := v_laves + 1;
       end if;
       v_vet_id := v.id;
@@ -1218,7 +1223,7 @@ begin
     'nb_crees',    v_crees,
     'nb_laves',    v_laves,
     'expedition',  (select numero from document where id = p_expedition_id),
-    'reference_elis', nullif(trim(p_reference_elis), ''),
+    'reference_prestataire', nullif(trim(p_reference_prestataire), ''),
     -- L'écart envoyé / reçu, par type et taille : c'est ce tableau qui fait
     -- du bulletin un argument face à une facture, et pas seulement un
     -- récapitulatif de ce qui est arrivé.
@@ -1240,7 +1245,7 @@ begin
           from (select vt.type_id, vt.taille, count(*) as n
                   from mouvement m join vetement vt on vt.id = m.vetement_id
                  where m.document_id = p_expedition_id
-                   and m.type = 'ENVOI_ELIS' and not m.annule
+                   and m.type = 'ENVOI_PRESTATAIRE' and not m.annule
                  group by 1, 2) e
           full outer join (select vt.type_id, vt.taille, count(*) as n
                   from mouvement m join vetement vt on vt.id = m.vetement_id
@@ -1389,7 +1394,7 @@ select
   (select count(*) from vetement where statut = 'en_stock')       as en_stock,
   (select count(*) from vetement where statut = 'en_utilisation') as en_utilisation,
   (select count(*) from vetement where statut = 'sale')           as sale,
-  (select count(*) from vetement where statut = 'chez_elis')      as chez_elis,
+  (select count(*) from vetement where statut = 'chez_prestataire')      as chez_prestataire,
   (select count(*) from vetement)                                 as parc_total,
   (select count(*) from v_stock_disponible where manque > 0)      as sous_seuil,
   (select count(*) from v_en_utilisation where not detenteur_actif) as detenteurs_inactifs,

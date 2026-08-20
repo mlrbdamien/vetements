@@ -48,14 +48,14 @@ const TONS_MOUVEMENT: Record<TypeMouvement, string> = {
   SORTIE: 'bg-accent-soft border-accent/30 text-accent',
   RETOUR_SALE: 'bg-warning-soft border-warning/30 text-warning-text',
   RECEPTION: 'bg-good-soft border-good/25 text-good-text',
-  ENVOI_ELIS: 'bg-surface-2 border-line-strong text-ink-2',
+  ENVOI_PRESTATAIRE: 'bg-surface-2 border-line-strong text-ink-2',
 };
 
 const PUCES_MOUVEMENT: Record<TypeMouvement, string> = {
   SORTIE: 'bg-accent-soft text-accent',
   RETOUR_SALE: 'bg-warning-soft text-warning-text',
   RECEPTION: 'bg-good-soft text-good-text',
-  ENVOI_ELIS: 'bg-surface-2 text-ink-2',
+  ENVOI_PRESTATAIRE: 'bg-surface-2 text-ink-2',
 };
 
 export function Scan({

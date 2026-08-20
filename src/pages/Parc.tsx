@@ -17,7 +17,7 @@ const TON_STATUT: Record<StatutVetement, string> = {
   en_stock: 'bg-good-soft text-good-text',
   en_utilisation: 'bg-accent-soft text-accent',
   sale: 'bg-warning-soft text-warning-text',
-  chez_elis: 'bg-surface-2 text-ink-2',
+  chez_prestataire: 'bg-surface-2 text-ink-2',
 };
 
 export function Badge({

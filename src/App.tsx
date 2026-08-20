@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { SessionProvider, useSession } from './lib/session';
 import { OperateurProvider } from './lib/operateur';
 import { useEnLigne } from './lib/connexion';
@@ -10,7 +10,6 @@ import {
   BandeauHorsLigne,
   BandeauVitrine,
   EnteteEcran,
-  PaletteCommandes,
   Rail,
   TITRES,
   useCompteurs,
@@ -28,22 +27,8 @@ function Corps() {
   const enLigne = useEnLigne();
   const [onglet, setOnglet] = useState<Onglet>('scan');
   const [aideOuverte, setAideOuverte] = useState(false);
-  const [paletteOuverte, setPaletteOuverte] = useState(false);
   const [compteurs, rechargerCompteurs] = useCompteurs();
 
-  // ⌘K / Ctrl+K ouvre la palette. Le champ de scan garde le focus le reste du
-  // temps : on n'intercepte que cette combinaison, jamais une frappe simple,
-  // sinon la douchette déclencherait des raccourcis en scannant.
-  useEffect(() => {
-    const surTouche = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setPaletteOuverte((o) => !o);
-      }
-    };
-    window.addEventListener('keydown', surTouche);
-    return () => window.removeEventListener('keydown', surTouche);
-  }, []);
 
   const changerOnglet = useCallback((o: Onglet) => {
     setOnglet(o);
@@ -134,12 +119,6 @@ function Corps() {
         </div>
       </div>
 
-      <PaletteCommandes
-        ouverte={paletteOuverte}
-        onFermer={() => setPaletteOuverte(false)}
-        onOnglet={changerOnglet}
-        admin={admin}
-      />
     </div>
   );
 }

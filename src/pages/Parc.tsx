@@ -76,20 +76,26 @@ export function Parc() {
       cle: 'code_barre',
       entete: 'Code-barre',
       largeur: 14,
+      filtre: 'texte',
       rendu: (v) => <span className="tabular font-medium">{v.code_barre}</span>,
     },
-    { cle: 'type_libelle', entete: 'Type', largeur: 18 },
-    { cle: 'taille', entete: 'Taille', nombre: true, largeur: 8 },
+    { cle: 'type_libelle', entete: 'Type', largeur: 18, filtre: 'liste' },
+    { cle: 'taille', entete: 'Taille', nombre: true, largeur: 8, filtre: 'liste' },
     {
       cle: 'statut',
       entete: 'Statut',
       largeur: 18,
+      filtre: 'liste',
+      // On trie et on filtre sur le libellé affiché, pas sur `en_stock` :
+      // c'est « En stock » que l'utilisatrice lit et cherche.
+      valeur: (v) => LIBELLE_STATUT[v.statut],
       rendu: (v) => <Badge statut={v.statut} />,
     },
     {
       cle: 'detenteur',
       entete: 'Détenteur',
       largeur: 20,
+      filtre: 'liste',
       rendu: (v) =>
         v.detenteur ? (
           <span className={cn(!v.detenteur_actif && 'text-critical-text')}>
@@ -105,6 +111,8 @@ export function Parc() {
       cle: 'rebut',
       entete: 'Rebut',
       largeur: 8,
+      filtre: 'liste',
+      valeur: (v) => (v.rebut ? 'oui' : 'non'),
       rendu: (v) =>
         v.rebut ? (
           <span className="text-warning-text font-medium">oui</span>
@@ -132,7 +140,7 @@ export function Parc() {
           <input
             value={terme}
             onChange={(e) => setTerme(e.target.value)}
-            placeholder="Code-barre — passez la douchette ou tapez quelques caractères"
+            placeholder="Code-barre — passez la douchette pour ouvrir une fiche"
             autoComplete="off"
             aria-label="Rechercher un vêtement"
             className={cn(inputClass, 'text-base')}
@@ -147,7 +155,7 @@ export function Parc() {
         description={
           chargement
             ? 'Chargement…'
-            : `${parc.length} vêtement(s). Cliquez une ligne pour ouvrir la fiche et son historique.`
+            : `${parc.length} vêtement(s). Cliquez un en-tête pour trier, une ligne pour ouvrir la fiche.`
         }
         colonnes={colonnes}
         lignes={parc}

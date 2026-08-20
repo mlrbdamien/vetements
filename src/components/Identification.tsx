@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { LogIn, ShieldCheck } from 'lucide-react';
+import { LogIn } from 'lucide-react';
 import { listerOperateurs, verifierPin } from '../lib/api';
 import { useOperateur } from '../lib/operateur';
 import { nomComplet, type Operateur } from '../types';
@@ -136,11 +136,6 @@ function Identification() {
             Ouvrir le poste
           </Button>
 
-          <p className="flex items-start gap-2 text-[13px] text-ink-3 flex-1 min-w-[280px] max-w-md">
-            <ShieldCheck size={15} strokeWidth={1.75} className="shrink-0 mt-0.5" />
-            Le code n’est jamais vérifié sur ce poste : il est comparé dans la
-            base, où seule son empreinte est conservée.
-          </p>
         </form>
       )}
 

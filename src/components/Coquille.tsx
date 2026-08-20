@@ -257,9 +257,6 @@ export function EnteteEcran({
 
       <div className="flex items-center gap-2 shrink-0">
         {actions}
-        <kbd className="hidden md:inline-block donnee text-[12px] text-ink-3 border border-line rounded-control px-1.5 py-[3px] bg-surface-2">
-          ⌘K
-        </kbd>
         {onAide && (
           <button
             type="button"
@@ -316,120 +313,9 @@ export function BandeauHorsLigne() {
   );
 }
 
+
 /* ------------------------------------------------------------------------- */
 
-/**
- * Palette de commandes. Sur un poste où la douchette occupe une main, aller
- * d'un écran à l'autre sans lâcher le clavier a une vraie valeur.
- */
-export function PaletteCommandes({
-  ouverte,
-  onFermer,
-  onOnglet,
-  admin,
-}: {
-  ouverte: boolean;
-  onFermer: () => void;
-  onOnglet: (o: Onglet) => void;
-  admin: boolean;
-}) {
-  const [terme, setTerme] = useState('');
-  const [curseur, setCurseur] = useState(0);
-
-  const resultats = TOUS_LES_ONGLETS.filter(
-    (e) =>
-      (admin || !e.admin) &&
-      TITRES[e.id].toLowerCase().includes(terme.trim().toLowerCase()),
-  );
-
-  useEffect(() => {
-    if (ouverte) {
-      setTerme('');
-      setCurseur(0);
-    }
-  }, [ouverte]);
-
-  useEffect(() => {
-    setCurseur((c) => Math.min(c, Math.max(resultats.length - 1, 0)));
-  }, [resultats.length]);
-
-  useEffect(() => {
-    if (!ouverte) return;
-    const surTouche = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') return onFermer();
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setCurseur((c) => (c + 1) % Math.max(resultats.length, 1));
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setCurseur(
-          (c) => (c - 1 + resultats.length) % Math.max(resultats.length, 1),
-        );
-      }
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const choisi = resultats[curseur];
-        if (choisi) {
-          onOnglet(choisi.id);
-          onFermer();
-        }
-      }
-    };
-    window.addEventListener('keydown', surTouche);
-    return () => window.removeEventListener('keydown', surTouche);
-  }, [ouverte, resultats, curseur, onOnglet, onFermer]);
-
-  if (!ouverte) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[18vh] bg-black/35 backdrop-blur-[2px] px-4"
-      onClick={onFermer}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Aller à un écran"
-        className="w-full max-w-md rounded-card bg-surface-1 border border-line shadow-modal overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <input
-          autoFocus
-          value={terme}
-          onChange={(e) => setTerme(e.target.value)}
-          placeholder="Aller à…"
-          aria-label="Aller à un écran"
-          className="w-full px-4 py-4 text-[17px] bg-transparent outline-none border-b border-line placeholder:text-ink-3"
-        />
-        <ul className="py-1.5 max-h-72 overflow-y-auto">
-          {resultats.length === 0 && (
-            <li className="px-4 py-3.5 text-[15px] text-ink-3">Aucun écran.</li>
-          )}
-          {resultats.map((e, i) => (
-            <li key={e.id}>
-              <button
-                type="button"
-                onMouseEnter={() => setCurseur(i)}
-                onClick={() => {
-                  onOnglet(e.id);
-                  onFermer();
-                }}
-                className={cn(
-                  'w-full flex items-center gap-2.5 px-4 py-2.5 text-[15px] text-left cursor-pointer',
-                  i === curseur ? 'bg-accent-soft text-accent' : 'text-ink-2',
-                )}
-              >
-                <e.icone size={15} strokeWidth={1.75} className="shrink-0" />
-                {TITRES[e.id]}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------------- */
 

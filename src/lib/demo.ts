@@ -68,11 +68,13 @@ const TYPES: TypeVetement[] = [
 /** Les codes sont affichés sur la vitrine : ce sont de faux comptes. */
 const PINS: Record<number, string> = { 1: '1234', 2: '5678' };
 
+// Prénoms seuls : c'est ainsi que l'équipe se nomme au quotidien, et une
+// vitrine publique n'a aucune raison d'inventer des noms de famille.
 const OPERATEURS: Operateur[] = [
-  { id: 1, prenom: 'Chantal', nom: 'Berset', actif: true, pin_defini: true },
-  { id: 2, prenom: 'Tanguy', nom: 'Devaud', actif: true, pin_defini: true },
-  { id: 3, prenom: 'Morgan', nom: 'Rieder', actif: true, pin_defini: false },
-  { id: 4, prenom: 'Alix', nom: 'Fournier', actif: true, pin_defini: false },
+  { id: 1, prenom: 'Chantal', nom: '', actif: true, pin_defini: true },
+  { id: 2, prenom: 'Tanguy', nom: '', actif: true, pin_defini: true },
+  { id: 3, prenom: 'Morgan', nom: '', actif: true, pin_defini: false },
+  { id: 4, prenom: 'Alix', nom: '', actif: true, pin_defini: false },
   { id: 5, prenom: 'Guillaume', nom: '', actif: false, pin_defini: false },
 ];
 

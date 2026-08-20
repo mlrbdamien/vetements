@@ -120,9 +120,8 @@ export function Rail({
     >
       <div className="px-5 py-5 border-b border-line">
         <p className="font-semibold tracking-[-0.015em] text-[17px] leading-tight">
-          Vêtements
+          Vêtements de laboratoire
         </p>
-        <p className="text-[12.5px] text-ink-3 mt-1">Pharmacie 24 · Elis</p>
       </div>
 
       <div className="flex-1 overflow-y-auto py-3 flex flex-col gap-4">
@@ -301,8 +300,8 @@ export function BandeauVitrine() {
         Données fictives, rien n'est enregistré — un rechargement remet tout à zéro.
       </span>
       <span className="opacity-90">
-        Pour scanner : <b>Chantal Berset</b> code <b className="donnee">1234</b>,
-        ou <b>Tanguy Devaud</b> code <b className="donnee">5678</b>.
+        Pour scanner : <b>Chantal</b> code <b className="donnee">1234</b>, ou{' '}
+        <b>Tanguy</b> code <b className="donnee">5678</b>.
       </span>
     </div>
   );

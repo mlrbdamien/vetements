@@ -3,14 +3,34 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// GitHub Pages sert le site sous /vetements-p24/ ; le workflow de
+// déploiement renseigne BASE_PATH. En local, la racine suffit.
 const base = process.env.BASE_PATH ?? '/';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   base,
   server: {
     port: Number(process.env.PORT) || 5173,
     strictPort: false,
   },
+  // Vite charge .env.local dans TOUS les modes, et .env.local a priorité sur
+  // .env.vitrine : sans ce blocage, les identifiants Supabase réels seraient
+  // compilés en clair dans le build public. Une variable VITE_* n'est pas une
+  // configuration, c'est une chaîne littérale insérée dans le JavaScript servi.
+  //
+  // `define` s'applique après l'injection des variables d'environnement, et
+  // écrase donc ce que .env.local avait apporté.
+  define:
+    mode === 'vitrine'
+      ? {
+          'import.meta.env.VITE_SUPABASE_URL': 'undefined',
+          'import.meta.env.VITE_SUPABASE_ANON_KEY': 'undefined',
+          'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY': 'undefined',
+          'import.meta.env.VITE_POSTE_EMAIL': 'undefined',
+          'import.meta.env.VITE_POSTE_MOT_DE_PASSE': 'undefined',
+        }
+      : {},
+
   plugins: [
     react(),
     tailwindcss(),
@@ -32,4 +52,4 @@ export default defineConfig({
       },
     }),
   ],
-});
+}));

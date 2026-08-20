@@ -132,3 +132,32 @@ devient la sauvegarde de fait — à mettre en place avec le lot d'exports.
 - Le parc et les tableaux de bord sont réservés à l'administratrice, comme le
   prévoit le brief. À rediscuter : un opérateur qui cherche où est passée une
   blouse n'a aujourd'hui aucun moyen de le savoir seul.
+
+## Vitrine publique
+
+`npm run dev:vitrine` — ou le déploiement automatique sur GitHub Pages à chaque
+push sur `main`, via `.github/workflows/vitrine.yml`.
+
+C'est un build **sans backend** : la couche de données est un modèle en mémoire
+(`src/lib/demo.ts`) qui rejoue en JavaScript le cycle de vie, les transitions
+interdites, le rejeu du journal et les messages d'erreur du schéma SQL. Un
+rechargement remet tout à zéro.
+
+Deux barrières empêchent les identifiants réels d'y entrer :
+
+1. `vite.config.ts` écrase les variables `VITE_SUPABASE_*` et `VITE_POSTE_*`
+   en mode `vitrine`. C'est indispensable : Vite charge `.env.local` dans tous
+   les modes, et `.env.local` a priorité sur `.env.vitrine` — sans ce blocage,
+   les vrais identifiants seraient compilés en clair dans la page publique.
+2. `src/lib/supabase.ts` refuse de construire un client en mode vitrine, même
+   si une variable réapparaissait.
+
+**Avant chaque publication**, vérifier que le build ne contient aucun secret :
+
+```
+npm run build:vitrine && grep -r "supabase.co" dist/ && echo FUITE || echo propre
+```
+
+Rappel : une variable `VITE_*` n'est pas une configuration, c'est une chaîne
+littérale insérée dans le JavaScript servi. Tout ce qui porte ce préfixe doit
+être considéré comme affiché en clair.

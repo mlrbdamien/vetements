@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "dev:demo": "vite --mode demo",
+    "dev:vitrine": "vite --mode vitrine",
+    "build:vitrine": "tsc --noEmit && vite build --mode vitrine",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
   },

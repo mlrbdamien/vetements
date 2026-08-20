@@ -154,9 +154,9 @@ body {
 
 /* Intitulé de section ou de colonne. */
 .etiquette {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
@@ -165,14 +165,14 @@ body {
    avant qu'on valide. */
 .champ-scan {
   font-family: var(--font-mono);
-  font-size: 30px;
+  font-size: 38px;
   letter-spacing: 0.09em;
   font-variant-numeric: tabular-nums;
 }
 
 /* Le verdict d'un scan doit se lire debout, à un mètre. */
 .verdict {
-  font-size: 34px;
+  font-size: 42px;
   font-weight: 680;
   letter-spacing: -0.025em;
   line-height: 1;

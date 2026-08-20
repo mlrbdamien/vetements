@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { VITRINE, demo } from './demo';
 import type {
   BesoinPrevisionnel,
   ChezElis,
@@ -50,12 +51,15 @@ function client() {
 }
 
 async function rpc<T>(nom: string, args: Record<string, unknown>): Promise<T> {
+  // Vitrine : aucun réseau, le modèle vit en mémoire (voir lib/demo.ts).
+  if (VITRINE) return routerVitrine(nom, args) as Promise<T>;
   const { data, error } = await client().rpc(nom, args);
   if (error) throw erreurDeSupabase(error.message, error.code);
   return data as T;
 }
 
 async function table<T>(nom: string, colonnes: string): Promise<T[]> {
+  if (VITRINE) return routerVitrineTable(nom) as Promise<T[]>;
   const { data, error } = await client().from(nom).select(colonnes);
   if (error) throw erreurDeSupabase(error.message, error.code);
   return (data ?? []) as T[];
@@ -163,6 +167,13 @@ export function listerExpeditionsOuvertes() {
  * faut créer la référence.
  */
 export async function chercherVetement(codeBarre: string) {
+  if (VITRINE) {
+    const v = (await demo.chercherParc(codeBarre)).find(
+      (x) => x.code_barre === codeBarre.trim(),
+    );
+    return v ? { ...v, id: v.vetement_id } : null;
+  }
+
   const { data, error } = await client()
     .from('vetement')
     .select('id, code_barre, taille, rebut, statut, nb_lavages, type_id')
@@ -206,6 +217,7 @@ export function enregistrerReception(
  * l'état du parc.
  */
 export async function lireCompteurs(): Promise<Compteurs> {
+  if (VITRINE) return demo.lireCompteurs() as never;
   const { data, error } = await client()
     .from('v_compteurs')
     .select(
@@ -219,6 +231,7 @@ export async function lireCompteurs(): Promise<Compteurs> {
 
 /** Les derniers mouvements, pour le journal de session de l'écran Scan. */
 export async function lireDerniersMouvements(limite = 8) {
+  if (VITRINE) return demo.lireDerniersMouvements(limite) as never;
   const { data, error } = await client()
     .from('v_journal_complet')
     .select(
@@ -243,6 +256,7 @@ const COLONNES_VETEMENT =
  * l'écran sert autant à chercher une pièce précise qu'à parcourir l'inventaire.
  */
 export async function chercherParc(terme: string): Promise<Vetement[]> {
+  if (VITRINE) return demo.chercherParc(terme) as never;
   let q = client().from('v_vetement').select(COLONNES_VETEMENT);
   const t = terme.trim();
   if (t) q = q.ilike('code_barre', `*${t}*`);
@@ -255,6 +269,12 @@ export async function chercherParc(terme: string): Promise<Vetement[]> {
 }
 
 export async function lireVetement(codeBarre: string): Promise<Vetement | null> {
+  if (VITRINE) {
+    return (await demo.chercherParc(codeBarre)).find(
+      (x) => x.code_barre === codeBarre.trim(),
+    ) ?? null;
+  }
+
   const { data, error } = await client()
     .from('v_vetement')
     .select(COLONNES_VETEMENT)
@@ -266,6 +286,7 @@ export async function lireVetement(codeBarre: string): Promise<Vetement | null> 
 
 /** L'historique complet d'une pièce, du plus récent au plus ancien. */
 export async function lireHistorique(vetementId: number) {
+  if (VITRINE) return demo.lireHistorique(vetementId) as never;
   const { data, error } = await client()
     .from('v_historique_vetement')
     .select(
@@ -369,6 +390,7 @@ export function reactiverOperateur(operateurId: number) {
 
 /** Combien de vêtements un opérateur détient — pour expliquer un refus. */
 export async function vetementsDetenus(operateurId: number) {
+  if (VITRINE) return demo.vetementsDetenus(operateurId) as never;
   const { data, error } = await client()
     .from('v_en_utilisation')
     .select('code_barre, type_libelle, taille, jours_en_utilisation')
@@ -380,4 +402,71 @@ export async function vetementsDetenus(operateurId: number) {
     taille: number;
     jours_en_utilisation: number;
   }[];
+}
+
+
+/* --- Vitrine ------------------------------------------------------------- */
+
+/**
+ * Aiguillage du build public vers le modèle en mémoire.
+ *
+ * La correspondance est écrite à la main plutôt que déduite du nom : si une
+ * RPC est ajoutée en production sans équivalent ici, la vitrine échoue
+ * bruyamment au lieu d'afficher silencieusement des données fausses.
+ */
+function routerVitrine(nom: string, args: Record<string, unknown>): Promise<unknown> {
+  switch (nom) {
+    case 'est_admin':
+      return demo.estAdmin();
+    case 'verifier_pin':
+      return demo.verifierPin(args.p_operateur_id as number, args.p_pin as string);
+    case 'enregistrer_mouvement':
+      return demo.enregistrerMouvement(
+        args.p_code_barre as string,
+        args.p_operateur_id as number,
+        args.p_pin as string,
+        args.p_contexte as ContexteScan,
+      );
+    case 'annuler_mouvement':
+      return demo.annulerMouvement(args.p_mouvement_id as number);
+    // Tout ce qui écrit durablement est refusé, avec une explication.
+    case 'creer_operateur':
+    case 'definir_pin_operateur':
+    case 'desactiver_operateur':
+    case 'reactiver_operateur':
+    case 'definir_seuil':
+    case 'creer_vetement':
+    case 'enregistrer_expedition':
+    case 'enregistrer_reception':
+      return demo.refuserEcriture();
+    default:
+      throw new Error(`Vitrine : la fonction « ${nom} » n'a pas d'équivalent hors ligne.`);
+  }
+}
+
+function routerVitrineTable(nom: string): Promise<unknown[]> {
+  switch (nom) {
+    case 'operateur_public':
+      return demo.listerOperateurs();
+    case 'type_vetement':
+      return demo.listerTypes();
+    case 'v_stock_disponible':
+      return demo.lireStockDisponible();
+    case 'v_chez_elis':
+      return demo.lireChezElis();
+    case 'v_en_utilisation':
+      return demo.lireEnUtilisation();
+    case 'v_linge_sale':
+      return demo.lireLingeSale();
+    case 'v_controle_facturation':
+      return demo.lireControleFacturation();
+    case 'v_besoins_previsionnels':
+      return demo.lireBesoinsPrevisionnels();
+    case 'v_journal_complet':
+      return demo.lireJournalComplet();
+    case 'v_expeditions_ouvertes':
+      return demo.listerExpeditionsOuvertes();
+    default:
+      throw new Error(`Vitrine : la vue « ${nom} » n'a pas d'équivalent hors ligne.`);
+  }
 }

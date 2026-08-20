@@ -8,6 +8,15 @@ const key =
   import.meta.env.VITE_SUPABASE_ANON_KEY ||
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-/** Null tant que Supabase n'est pas configuré — l'app le signale à l'écran. */
+/**
+ * Null tant que Supabase n'est pas configuré — l'app le signale à l'écran.
+ *
+ * En mode vitrine, le client n'est jamais construit : c'est une seconde
+ * barrière derrière le `define` de vite.config.ts. Si un jour une variable
+ * réapparaissait dans le build public, aucune requête ne partirait pour
+ * autant.
+ */
+const vitrine = import.meta.env.VITE_VITRINE === '1';
+
 export const supabase: SupabaseClient | null =
-  url && key ? createClient(url, key) : null;
+  !vitrine && url && key ? createClient(url, key) : null;

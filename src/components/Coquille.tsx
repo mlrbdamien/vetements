@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { lireCompteurs } from '../lib/api';
+import { VITRINE } from '../lib/demo';
 import type { Compteurs } from '../types';
 import { cn } from './ui';
 
@@ -114,14 +115,14 @@ export function Rail({
 }) {
   return (
     <nav
-      className="rail-navigation w-[232px] shrink-0 bg-rail border-r border-line flex flex-col"
+      className="rail-navigation w-[264px] shrink-0 bg-rail border-r border-line flex flex-col"
       aria-label="Navigation principale"
     >
-      <div className="px-4 py-4 border-b border-line">
-        <p className="font-semibold tracking-[-0.015em] text-[15px] leading-tight">
+      <div className="px-5 py-5 border-b border-line">
+        <p className="font-semibold tracking-[-0.015em] text-[17px] leading-tight">
           Vêtements
         </p>
-        <p className="text-[11px] text-ink-3 mt-0.5">Pharmacie 24 · Elis</p>
+        <p className="text-[12.5px] text-ink-3 mt-1">Pharmacie 24 · Elis</p>
       </div>
 
       <div className="flex-1 overflow-y-auto py-3 flex flex-col gap-4">
@@ -140,14 +141,14 @@ export function Rail({
                     onClick={() => onOnglet(e.id)}
                     aria-current={actif ? 'page' : undefined}
                     className={cn(
-                      'group flex items-center gap-2.5 rounded-control px-2 py-[7px] text-[13px] transition-colors cursor-pointer text-left',
+                      'group flex items-center gap-2.5 rounded-control px-2.5 py-2.5 text-[15px] transition-colors cursor-pointer text-left',
                       actif
                         ? 'bg-surface-1 text-ink font-semibold shadow-rail'
                         : 'text-ink-2 hover:bg-surface-2 hover:text-ink',
                     )}
                   >
                     <e.icone
-                      size={15}
+                      size={17}
                       strokeWidth={actif ? 2 : 1.75}
                       className={cn('shrink-0', actif ? 'text-accent' : 'text-ink-3')}
                     />
@@ -163,7 +164,7 @@ export function Rail({
                         « Expédition 5 » sans dire 5 de quoi. */}
                     {n !== null && (
                       <span
-                        className="donnee text-[11px] text-ink-3 shrink-0"
+                        className="donnee text-[13px] text-ink-3 shrink-0"
                         aria-label={`${n} en attente`}
                       >
                         {n}
@@ -203,15 +204,15 @@ function EtatParc({ compteurs }: { compteurs: Compteurs }) {
   ];
 
   return (
-    <div className="border-t border-line px-4 py-3.5">
+    <div className="border-t border-line px-5 py-4">
       <p className="etiquette mb-2">Parc</p>
       <dl className="flex flex-col gap-1">
         {lignes.map((r) => (
           <div key={r.l} className="flex items-baseline justify-between gap-3">
-            <dt className="text-[12px] text-ink-2">{r.l}</dt>
+            <dt className="text-[14px] text-ink-2">{r.l}</dt>
             <dd
               className={cn(
-                'donnee text-[13px] font-semibold',
+                'donnee text-[17px] font-semibold',
                 r.mal && 'text-critical-text',
               )}
             >
@@ -221,7 +222,7 @@ function EtatParc({ compteurs }: { compteurs: Compteurs }) {
         ))}
       </dl>
       {compteurs.sous_seuil > 0 && (
-        <p className="text-[11px] text-critical-text mt-2.5 leading-snug">
+        <p className="text-[12.5px] text-critical-text mt-3 leading-snug">
           {compteurs.sous_seuil} combinaison(s) sous leur seuil
         </p>
       )}
@@ -245,19 +246,19 @@ export function EnteteEcran({
   aideOuverte?: boolean;
 }) {
   return (
-    <header className="flex items-center justify-between gap-6 px-7 h-[52px] border-b border-line bg-surface-1 shrink-0">
+    <header className="flex items-center justify-between gap-6 px-8 h-[60px] border-b border-line bg-surface-1 shrink-0">
       <div className="flex items-baseline gap-3 min-w-0">
-        <h1 className="text-[15px] font-semibold tracking-[-0.015em] shrink-0">
+        <h1 className="text-[18px] font-semibold tracking-[-0.02em] shrink-0">
           {titre}
         </h1>
         {contexte && (
-          <span className="text-[12.5px] text-ink-3 truncate">{contexte}</span>
+          <span className="text-[14px] text-ink-3 truncate">{contexte}</span>
         )}
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
         {actions}
-        <kbd className="hidden md:inline-block donnee text-[10.5px] text-ink-3 border border-line rounded-control px-1.5 py-[3px] bg-surface-2">
+        <kbd className="hidden md:inline-block donnee text-[12px] text-ink-3 border border-line rounded-control px-1.5 py-[3px] bg-surface-2">
           ⌘K
         </kbd>
         {onAide && (
@@ -267,7 +268,7 @@ export function EnteteEcran({
             aria-pressed={aideOuverte}
             title="Repères de cet écran"
             className={cn(
-              'inline-flex h-7 w-7 items-center justify-center rounded-control transition-colors cursor-pointer',
+              'inline-flex h-8 w-8 items-center justify-center rounded-control transition-colors cursor-pointer',
               aideOuverte
                 ? 'bg-accent-soft text-accent'
                 : 'text-ink-3 hover:text-ink hover:bg-surface-2',
@@ -283,9 +284,33 @@ export function EnteteEcran({
 
 /* ------------------------------------------------------------------------- */
 
+/**
+ * Bandeau de la vitrine publique.
+ *
+ * Il dit trois choses qu'une personne extérieure ne peut pas deviner : les
+ * données sont fictives, rien n'est enregistré, et voici les codes pour
+ * essayer. Sans lui, un stakeholder croirait voir le parc réel de la
+ * pharmacie.
+ */
+export function BandeauVitrine() {
+  if (!VITRINE) return null;
+  return (
+    <div className="bg-accent text-white px-5 py-2.5 flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-[13.5px] shrink-0">
+      <span className="font-semibold">Démonstration</span>
+      <span className="opacity-90">
+        Données fictives, rien n'est enregistré — un rechargement remet tout à zéro.
+      </span>
+      <span className="opacity-90">
+        Pour scanner : <b>Chantal Berset</b> code <b className="donnee">1234</b>,
+        ou <b>Tanguy Devaud</b> code <b className="donnee">5678</b>.
+      </span>
+    </div>
+  );
+}
+
 export function BandeauHorsLigne() {
   return (
-    <div className="bg-critical text-white px-4 py-2 flex items-center justify-center gap-2 text-[13px] font-medium shrink-0">
+    <div className="bg-critical text-white px-4 py-2.5 flex items-center justify-center gap-2 text-[15px] font-medium shrink-0">
       <WifiOff size={15} strokeWidth={2} />
       Hors ligne — le scan est suspendu. Rien n’est mis en attente.
     </div>
@@ -376,11 +401,11 @@ export function PaletteCommandes({
           onChange={(e) => setTerme(e.target.value)}
           placeholder="Aller à…"
           aria-label="Aller à un écran"
-          className="w-full px-4 py-3.5 text-[15px] bg-transparent outline-none border-b border-line placeholder:text-ink-3"
+          className="w-full px-4 py-4 text-[17px] bg-transparent outline-none border-b border-line placeholder:text-ink-3"
         />
         <ul className="py-1.5 max-h-72 overflow-y-auto">
           {resultats.length === 0 && (
-            <li className="px-4 py-3 text-[13px] text-ink-3">Aucun écran.</li>
+            <li className="px-4 py-3.5 text-[15px] text-ink-3">Aucun écran.</li>
           )}
           {resultats.map((e, i) => (
             <li key={e.id}>
@@ -392,7 +417,7 @@ export function PaletteCommandes({
                   onFermer();
                 }}
                 className={cn(
-                  'w-full flex items-center gap-2.5 px-4 py-2 text-[13.5px] text-left cursor-pointer',
+                  'w-full flex items-center gap-2.5 px-4 py-2.5 text-[15px] text-left cursor-pointer',
                   i === curseur ? 'bg-accent-soft text-accent' : 'text-ink-2',
                 )}
               >

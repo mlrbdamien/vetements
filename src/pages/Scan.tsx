@@ -136,13 +136,13 @@ export function Scan({
   return (
     <div className="flex gap-6 items-start">
       {/* --- Colonne de travail ------------------------------------------- */}
-      <div className="flex-1 min-w-0 flex flex-col gap-5 max-w-3xl">
+      <div className="flex-1 min-w-0 flex flex-col gap-6">
         <form onSubmit={scanner} className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between gap-4">
             <label htmlFor="champ-scan" className="etiquette">
               Code-barre
             </label>
-            <p className="text-[12px] text-ink-3">
+            <p className="text-[14px] text-ink-3">
               Poste tenu par{' '}
               <span className="text-ink-2 font-medium">
                 {operateur ? nomComplet(operateur) : '—'}
@@ -168,7 +168,7 @@ export function Scan({
             aria-label="Code-barre du vêtement"
             className={cn(
               inputClass,
-              'champ-scan py-4 px-5 bg-surface-1 border-line-strong',
+              'champ-scan py-5 px-6 bg-surface-1 border-line-strong',
               'focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-ring)]',
               'disabled:opacity-50',
             )}
@@ -183,7 +183,7 @@ export function Scan({
               <ScanLine size={16} strokeWidth={1.75} />
               Valider
             </Button>
-            <p className="text-[12px] text-ink-3">
+            <p className="text-[14px] text-ink-3">
               Passez la douchette, ou tapez le code à la main s’il est illisible.
             </p>
           </div>
@@ -203,12 +203,12 @@ export function Scan({
                 <p className="verdict">
                   {LIBELLE_MOUVEMENT[resultat.mouvement_type]}
                 </p>
-                <p className="text-[17px] mt-1.5">
+                <p className="text-[20px] mt-2">
                   {resultat.type_libelle} · taille {resultat.taille}
                   {resultat.detenteur && ` · ${resultat.detenteur}`}
                 </p>
               </div>
-              <div className="donnee text-[12px] text-right leading-relaxed shrink-0 opacity-80">
+              <div className="donnee text-[14px] text-right leading-relaxed shrink-0 opacity-80">
                 {resultat.code_barre}
                 <br />
                 {resultat.nb_lavages} lavage(s)
@@ -216,7 +216,7 @@ export function Scan({
             </div>
 
             <div className="px-6 py-3.5 flex items-center justify-between gap-4">
-              <p className="text-[13px] text-ink-2">
+              <p className="text-[15px] text-ink-2">
                 Statut&nbsp;:{' '}
                 <span className="font-medium text-ink">
                   {LIBELLE_STATUT[resultat.statut]}
@@ -263,30 +263,30 @@ function JournalSession({ lignes }: { lignes: LigneJournal[] }) {
         <h2 className="etiquette">Derniers mouvements</h2>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-[13px]">
+        <table className="w-full text-[14.5px]">
           <thead>
             <tr className="etiquette text-left border-b border-line">
-              <th className="font-semibold px-5 py-2">Heure</th>
-              <th className="font-semibold px-5 py-2">Code</th>
-              <th className="font-semibold px-5 py-2">Pièce</th>
-              <th className="font-semibold px-5 py-2">Mouvement</th>
-              <th className="font-semibold px-5 py-2">Opérateur</th>
+              <th className="font-semibold px-5 py-2.5">Heure</th>
+              <th className="font-semibold px-5 py-2.5">Code</th>
+              <th className="font-semibold px-5 py-2.5">Pièce</th>
+              <th className="font-semibold px-5 py-2.5">Mouvement</th>
+              <th className="font-semibold px-5 py-2.5">Opérateur</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
             {lignes.map((m) => (
               <tr key={m.mouvement_id} className={cn(m.annule && 'opacity-50')}>
-                <td className="px-5 py-2 donnee text-ink-3 whitespace-nowrap">
+                <td className="px-5 py-2.5 donnee text-ink-3 whitespace-nowrap">
                   {formatHorodatage(m.horodatage).slice(-5)}
                 </td>
-                <td className="px-5 py-2 donnee">{m.code_barre}</td>
-                <td className="px-5 py-2 text-ink-2 whitespace-nowrap">
+                <td className="px-5 py-2.5 donnee">{m.code_barre}</td>
+                <td className="px-5 py-2.5 text-ink-2 whitespace-nowrap">
                   {m.type_libelle} · {m.taille}
                 </td>
                 <td className="px-5 py-2">
                   <span
                     className={cn(
-                      'inline-block rounded px-2 py-0.5 text-[11px] font-semibold',
+                      'inline-block rounded px-2.5 py-1 text-[12.5px] font-semibold',
                       PUCES_MOUVEMENT[m.type],
                       m.annule && 'line-through',
                     )}
@@ -294,7 +294,7 @@ function JournalSession({ lignes }: { lignes: LigneJournal[] }) {
                     {LIBELLE_MOUVEMENT[m.type]}
                   </span>
                 </td>
-                <td className="px-5 py-2 text-ink-3 whitespace-nowrap">
+                <td className="px-5 py-2.5 text-ink-3 whitespace-nowrap">
                   {m.operateur ?? '—'}
                 </td>
               </tr>

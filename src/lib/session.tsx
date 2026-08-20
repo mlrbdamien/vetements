@@ -9,6 +9,7 @@ import {
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { estAdmin as verifierEstAdmin } from './api';
+import { VITRINE } from './demo';
 
 /**
  * Deux niveaux d'identité, à ne pas confondre :
@@ -58,6 +59,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Vitrine : aucun backend, donc aucune session à ouvrir. Tous les écrans
+    // sont accessibles — les parties prenantes doivent pouvoir tout parcourir
+    // sans qu'on leur distribue un mot de passe.
+    if (VITRINE) {
+      setAdmin(true);
+      setChargement(false);
+      return;
+    }
+
     if (!supabase) {
       setErreur(
         "L'application n'est pas configurée : VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY sont absents.",
@@ -89,6 +99,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Le menu Admin n'est qu'un confort d'affichage : la vraie garde est
   // est_admin() en base, sur chaque RPC d'administration.
   useEffect(() => {
+    if (VITRINE) return;
     if (!session) {
       setAdmin(false);
       return;

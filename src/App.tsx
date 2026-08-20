@@ -8,6 +8,7 @@ import { ExigeAdmin } from './components/ConnexionAdmin';
 import { PanneauAide } from './components/Aide';
 import {
   BandeauHorsLigne,
+  BandeauVitrine,
   EnteteEcran,
   PaletteCommandes,
   Rail,
@@ -69,6 +70,7 @@ function Corps() {
 
   return (
     <div className="h-dvh flex flex-col">
+      <BandeauVitrine />
       {!enLigne && <BandeauHorsLigne />}
 
       <div className="flex-1 flex min-h-0">

@@ -1,0 +1,51 @@
+# Déploie la vitrine de démonstration sur GitHub Pages.
+#
+# Le build utilise le mode « vitrine » : aucune variable Supabase n'est
+# fournie, et la couche de données est le modèle en mémoire de src/lib/demo.ts.
+# Aucun secret n'est donc nécessaire ici — et c'est voulu : une variable VITE_*
+# se retrouverait en clair dans le JavaScript servi publiquement.
+name: Vitrine
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  construire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:vitrine
+        env:
+          BASE_PATH: /vetements-p24/
+      # GitHub Pages ne connaît pas les routes de l'application : sans cette
+      # copie, un rechargement sur une URL profonde renverrait un 404.
+      - run: cp dist/index.html dist/404.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deployer:
+    needs: construire
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      - id: deploiement
+        uses: actions/deploy-pages@v4

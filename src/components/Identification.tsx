@@ -3,7 +3,7 @@ import { LogIn, ShieldCheck } from 'lucide-react';
 import { listerOperateurs, verifierPin } from '../lib/api';
 import { useOperateur } from '../lib/operateur';
 import { nomComplet, type Operateur } from '../types';
-import { Alerte, Button, Card, Field, cn, inputClass } from './ui';
+import { Alerte, Button, cn, inputClass } from './ui';
 
 /**
  * Garde les écrans opérateur : affiche l'identification tant que personne
@@ -56,16 +56,25 @@ function Identification() {
   }
 
   return (
-    <div className="max-w-2xl space-y-5">
-      <div className="space-y-5">
-      <Card>
-        <p className="font-medium mb-1">Qui tient le poste ?</p>
-        <p className="text-sm text-ink-3 mb-4">
+    // L'écran occupe toute la largeur disponible : c'est le premier que voit
+    // quiconque arrive au poste, et une carte étroite au milieu d'un grand
+    // écran donne l'impression que l'application n'est pas finie.
+    <div className="flex flex-col gap-7">
+      <div>
+        <h2 className="text-[26px] font-semibold tracking-[-0.02em]">
+          Qui tient le poste ?
+        </h2>
+        <p className="text-[15px] text-ink-3 mt-1.5">
           Sélectionnez votre nom, puis saisissez votre code à 4 chiffres.
         </p>
+      </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {operateurs.map((o) => (
+      {/* Des tuiles larges, pas des boutons : on les vise debout, parfois avec
+          une douchette dans l'autre main. */}
+      <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(210px,1fr))]">
+        {operateurs.map((o) => {
+          const actif = choisi?.id === o.id;
+          return (
             <button
               key={o.id}
               type="button"
@@ -74,54 +83,68 @@ function Identification() {
                 setPin('');
                 setErreur(null);
               }}
+              aria-pressed={actif}
               className={cn(
-                'rounded-control border px-3 py-3 text-sm font-medium transition-colors cursor-pointer text-left',
-                choisi?.id === o.id
-                  ? 'border-accent bg-accent-soft text-accent'
-                  : 'border-line bg-surface-2 hover:bg-line',
+                'rounded-card border px-5 py-4 text-left transition-colors cursor-pointer min-h-[76px] flex flex-col justify-center',
+                actif
+                  ? 'border-accent bg-accent-soft text-accent shadow-card'
+                  : 'border-line bg-surface-1 hover:border-line-strong hover:bg-surface-2',
               )}
             >
-              {nomComplet(o)}
+              <span className="text-[17px] font-medium tracking-[-0.01em]">
+                {nomComplet(o)}
+              </span>
               {!o.pin_defini && (
-                <span className="block text-[11px] font-normal text-ink-3 mt-0.5">
+                <span className="text-[12.5px] font-normal text-ink-3 mt-1">
                   code à initialiser
                 </span>
               )}
             </button>
-          ))}
-        </div>
+          );
+        })}
+      </div>
 
-        {choisi && (
-          <form onSubmit={valider} className="mt-5 pt-5 border-t border-line">
-            <Field label={`Code de ${nomComplet(choisi)}`}>
-              <input
-                ref={champPin}
-                type="password"
-                inputMode="numeric"
-                autoComplete="off"
-                maxLength={4}
-                value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                className={cn(inputClass, 'champ-scan text-center py-4')}
-                placeholder="••••"
-              />
-            </Field>
-            <Button type="submit" size="lg" disabled={pin.length !== 4 || occupe}>
-              <LogIn size={18} strokeWidth={1.75} />
-              Ouvrir le poste
-            </Button>
-          </form>
-        )}
-      </Card>
+      {choisi && (
+        <form
+          onSubmit={valider}
+          className="rounded-card border border-line bg-surface-1 shadow-card p-6 flex flex-wrap items-end gap-5"
+        >
+          <div className="flex-1 min-w-[260px] max-w-sm">
+            <label htmlFor="champ-pin" className="etiquette block mb-2">
+              Code de {nomComplet(choisi)}
+            </label>
+            <input
+              id="champ-pin"
+              ref={champPin}
+              type="password"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={4}
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+              className={cn(
+                inputClass,
+                'champ-scan text-center py-4 tracking-[0.35em]',
+                'focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-ring)]',
+              )}
+              placeholder="••••"
+            />
+          </div>
+
+          <Button type="submit" size="lg" disabled={pin.length !== 4 || occupe}>
+            <LogIn size={18} strokeWidth={1.75} />
+            Ouvrir le poste
+          </Button>
+
+          <p className="flex items-start gap-2 text-[13px] text-ink-3 flex-1 min-w-[280px] max-w-md">
+            <ShieldCheck size={15} strokeWidth={1.75} className="shrink-0 mt-0.5" />
+            Le code n’est jamais vérifié sur ce poste : il est comparé dans la
+            base, où seule son empreinte est conservée.
+          </p>
+        </form>
+      )}
 
       {erreur && <Alerte>{erreur}</Alerte>}
-
-      <p className="flex items-start gap-2 text-xs text-ink-3">
-        <ShieldCheck size={14} strokeWidth={1.75} className="shrink-0 mt-0.5" />
-        Le code n'est jamais vérifié sur ce poste : il est comparé dans la base,
-        où seule son empreinte est conservée.
-      </p>
-      </div>
     </div>
   );
 }

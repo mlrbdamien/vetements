@@ -21,6 +21,7 @@ import {
   Alerte,
   Button,
   Card,
+  Chargement,
   CardHeader,
   EmptyState,
   cn,
@@ -39,6 +40,7 @@ const JOURS_SUSPECT = 14;
 
 export function Expedition({ enLigne }: { enLigne: boolean }) {
   const [linge, setLinge] = useState<LingeSale[]>([]);
+  const [chargement, setChargement] = useState(true);
   const [coches, setCoches] = useState<Set<number>>(new Set());
   const [code, setCode] = useState('');
   const [erreur, setErreur] = useState<string | null>(null);
@@ -47,11 +49,14 @@ export function Expedition({ enLigne }: { enLigne: boolean }) {
   const champScan = useRef<HTMLInputElement>(null);
 
   const charger = useCallback(async () => {
+    setChargement(true);
     try {
       setLinge(await listerLingeSale());
       setCoches(new Set());
     } catch (err) {
       setErreur((err as Error).message);
+    } finally {
+      setChargement(false);
     }
   }, []);
 
@@ -131,6 +136,9 @@ export function Expedition({ enLigne }: { enLigne: boolean }) {
       />
     );
   }
+
+  if (chargement && linge.length === 0)
+    return <Chargement quoi="Lecture de la corbeille" />;
 
   return (
     <div className="space-y-5">

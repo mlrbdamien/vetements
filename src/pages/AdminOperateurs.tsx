@@ -21,6 +21,7 @@ import {
   Button,
   Card,
   CardHeader,
+  Chargement,
   Field,
   IconButton,
   Modal,
@@ -42,6 +43,10 @@ type Dialogue =
 
 function Liste({ onQuitter }: { onQuitter: () => Promise<void> }) {
   const [operateurs, setOperateurs] = useState<Operateur[]>([]);
+  const [chargement, setChargement] = useState(true);
+  // UX-6 : la désactivation partait au clic, dans une liste où l'icône
+  // voisine ouvre une fenêtre. On nomme la personne avant d'agir.
+  const [aDesactiver, setADesactiver] = useState<Operateur | null>(null);
   const [dialogue, setDialogue] = useState<Dialogue>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [succes, setSucces] = useState<string | null>(null);
@@ -51,10 +56,13 @@ function Liste({ onQuitter }: { onQuitter: () => Promise<void> }) {
   >([]);
 
   const recharger = useCallback(async () => {
+    setChargement(true);
     try {
       setOperateurs(await listerOperateurs());
     } catch (err) {
       setErreur((err as Error).message);
+    } finally {
+      setChargement(false);
     }
   }, []);
 
@@ -91,6 +99,9 @@ function Liste({ onQuitter }: { onQuitter: () => Promise<void> }) {
     },
     [recharger],
   );
+
+  if (chargement && operateurs.length === 0)
+    return <Chargement quoi="Lecture des opérateurs" />;
 
   return (
     <div className="space-y-5">
@@ -164,7 +175,9 @@ function Liste({ onQuitter }: { onQuitter: () => Promise<void> }) {
                       : `Réactiver ${nomComplet(o)}`
                   }
                   tone={o.actif ? 'danger' : 'muted'}
-                  onClick={() => void basculer(o)}
+                  onClick={() =>
+                    o.actif ? setADesactiver(o) : void basculer(o)
+                  }
                 />
               </div>
             </li>
@@ -177,6 +190,36 @@ function Liste({ onQuitter }: { onQuitter: () => Promise<void> }) {
         mouvements qu'il a enregistrés. La désactivation le retire seulement de
         la liste de l'écran Scan.
       </p>
+
+      <Modal
+        open={aDesactiver !== null}
+        onClose={() => setADesactiver(null)}
+        title="Désactiver cet opérateur ?"
+      >
+        <p className="text-sm text-ink-2 mb-5">
+          <span className="font-medium text-ink">
+            {aDesactiver ? nomComplet(aDesactiver) : ''}
+          </span>{' '}
+          disparaîtra de la liste de l’écran Scan. Son nom reste attaché aux
+          mouvements qu’il a déjà enregistrés, et vous pourrez le réactiver à
+          tout moment.
+        </p>
+        <div className="flex gap-2">
+          <Button
+            variant="danger"
+            onClick={() => {
+              const o = aDesactiver;
+              setADesactiver(null);
+              if (o) void basculer(o);
+            }}
+          >
+            Désactiver
+          </Button>
+          <Button variant="ghost" onClick={() => setADesactiver(null)}>
+            Annuler
+          </Button>
+        </div>
+      </Modal>
 
       <DialogueOperateur
         dialogue={dialogue}

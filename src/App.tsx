@@ -27,12 +27,16 @@ function Corps() {
   const enLigne = useEnLigne();
   const [onglet, setOnglet] = useState<Onglet>('scan');
   const [aideOuverte, setAideOuverte] = useState(false);
+  const [railOuvert, setRailOuvert] = useState(false);
   const [compteurs, rechargerCompteurs] = useCompteurs();
 
 
   const changerOnglet = useCallback((o: Onglet) => {
     setOnglet(o);
     setAideOuverte(false);
+    // Sur écran étroit le rail recouvre le contenu : le laisser ouvert après
+    // un choix masquerait l'écran qu'on vient de demander.
+    setRailOuvert(false);
   }, []);
 
   if (chargement) {
@@ -64,7 +68,18 @@ function Corps() {
           onOnglet={changerOnglet}
           admin={admin}
           compteurs={compteurs}
+          ouvert={railOuvert}
         />
+
+        {/* Voile de fermeture, sur écran étroit uniquement. */}
+        {railOuvert && (
+          <button
+            type="button"
+            aria-label="Fermer la navigation"
+            onClick={() => setRailOuvert(false)}
+            className="md:hidden fixed inset-0 z-30 bg-black/35 cursor-default"
+          />
+        )}
 
         <div className="flex-1 flex min-w-0">
           <div className="flex-1 flex flex-col min-w-0">
@@ -72,6 +87,7 @@ function Corps() {
               titre={TITRES[onglet]}
               onAide={() => setAideOuverte((o) => !o)}
               aideOuverte={aideOuverte}
+              onMenu={() => setRailOuvert(true)}
             />
 
             <main className="flex-1 overflow-y-auto px-7 py-6">

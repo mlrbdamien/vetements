@@ -225,7 +225,7 @@ export function PanneauAide({
   if (!aide || !ouvert) return null;
 
   return (
-    <aside className="panneau-aide w-[288px] shrink-0 border-l border-line bg-surface-1 overflow-y-auto">
+    <aside className="panneau-aide w-[288px] shrink-0 border-l border-line bg-surface-1 overflow-y-auto max-xl:fixed max-xl:inset-y-0 max-xl:right-0 max-xl:z-40 max-xl:shadow-modal">
       <div className="flex items-center justify-between gap-3 px-5 h-[52px] border-b border-line sticky top-0 bg-surface-1">
         <h2 className="etiquette">{aide.titre} — repères</h2>
         <button

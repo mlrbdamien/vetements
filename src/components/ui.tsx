@@ -243,8 +243,38 @@ export function Alerte({
     good: 'bg-good-soft text-good-text border-good/25',
   }[ton];
   return (
-    <div className={cn('rounded-control border px-4 py-3 text-sm', styles)}>
+    <div
+      // `alert` interrompt la lecture en cours pour une erreur, `status`
+      // attend une pause pour une confirmation : un refus de scan doit passer
+      // devant, une réussite non.
+      role={ton === 'critical' ? 'alert' : 'status'}
+      aria-live={ton === 'critical' ? 'assertive' : 'polite'}
+      className={cn('rounded-control border px-4 py-3 text-sm', styles)}
+    >
       {children}
     </div>
+  );
+}
+
+
+/**
+ * Chargement en cours.
+ *
+ * Quatre écrans restaient blancs pendant leur lecture, puis se remplissaient
+ * d'un coup : sur une base lente, c'est indiscernable d'une application figée.
+ */
+export function Chargement({ quoi = 'Chargement' }: { quoi?: string }) {
+  return (
+    <p
+      role="status"
+      aria-live="polite"
+      className="flex items-center gap-2.5 text-[14px] text-ink-3 py-8"
+    >
+      <span
+        aria-hidden="true"
+        className="h-3.5 w-3.5 rounded-full border-2 border-line-strong border-t-accent animate-spin motion-reduce:animate-none"
+      />
+      {quoi}…
+    </p>
   );
 }

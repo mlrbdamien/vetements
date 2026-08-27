@@ -33,14 +33,67 @@ import { Alerte, Button, cn, inputClass } from '../components/ui';
    personne ne s'en rende compte avant l'inventaire suivant.
    --------------------------------------------------------------------------- */
 
+/** Un vrai contrôle, où le focus a le droit d'aller et de rester. */
+function estInteractif(n: EventTarget | Element | null): boolean {
+  return !!(n as Element | null)?.closest?.(
+    'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+  );
+}
+
 function useFocusScan(ref: RefObject<HTMLInputElement | null>, actif: boolean) {
   useEffect(() => {
     if (!actif) return;
     ref.current?.focus();
 
-    // TODO(human)
+    // Deux exigences qui se contredisent : le champ doit presque toujours
+    // avoir le focus, et l'opérateur doit pouvoir atteindre « changer » ou
+    // « Annuler ». Reprendre le focus à chaque `blur` satisfait la première
+    // et rend la seconde impossible — le champ redevient actif avant même que
+    // le clic n'aboutisse sur le bouton.
+    //
+    // On ne reprend donc le focus que lorsqu'il n'est allé sur RIEN : un clic
+    // dans le vide, une zone de texte, le fond de la page. Dès qu'il atterrit
+    // sur un contrôle, on le laisse tranquille.
+    const reprendre = () => {
+      const champ = ref.current;
+      if (!champ || champ.disabled) return;
+      if (estInteractif(document.activeElement)) return;
+      if (!document.hasFocus()) return; // l'onglet n'est plus au premier plan
+      champ.focus();
+    };
+
+    // Le `blur` précède le placement du focus sur la nouvelle cible : on
+    // attend la fin du tour de boucle pour savoir où il a réellement atterri.
+    const surBlur = () => queueMicrotask(reprendre);
+    const surClic = (e: MouseEvent) => {
+      if (!estInteractif(e.target)) queueMicrotask(reprendre);
+    };
+
+    const champ = ref.current;
+    champ?.addEventListener('blur', surBlur);
+    document.addEventListener('click', surClic);
+    // Revenir de l'écran Expédition, d'une autre fenêtre ou d'une mise en
+    // veille doit rendre le poste immédiatement opérationnel.
+    window.addEventListener('focus', reprendre);
+
+    return () => {
+      champ?.removeEventListener('blur', surBlur);
+      document.removeEventListener('click', surClic);
+      window.removeEventListener('focus', reprendre);
+    };
   }, [ref, actif]);
 }
+
+/**
+ * Deux lectures du même code à moins d'une seconde d'intervalle ne peuvent pas
+ * être deux gestes : une douchette rebondit, une personne non. Sans ce
+ * garde-fou, un double déclenchement enchaînerait sortie puis retour sale — et
+ * la pièce se retrouverait en corbeille alors qu'elle vient d'être prise.
+ *
+ * Au-delà d'une seconde, le doublon est légitime : sortir un vêtement puis le
+ * rendre est le cycle normal.
+ */
+const DELAI_REBOND_MS = 1000;
 
 /* ------------------------------------------------------------------------- */
 
@@ -74,6 +127,7 @@ export function Scan({
   const [journal, setJournal] = useState<LigneJournal[]>([]);
 
   const champScan = useRef<HTMLInputElement>(null);
+  const dernierScan = useRef<{ code: string; a: number } | null>(null);
   useFocusScan(champScan, enLigne);
 
   const rafraichirJournal = useCallback(() => {
@@ -95,6 +149,18 @@ export function Scan({
       e.preventDefault();
       const codeBarre = code.trim();
       if (!codeBarre || !operateur || occupe) return;
+
+      const precedent = dernierScan.current;
+      if (
+        precedent &&
+        precedent.code === codeBarre &&
+        Date.now() - precedent.a < DELAI_REBOND_MS
+      ) {
+        setCode('');
+        champScan.current?.focus();
+        return;
+      }
+      dernierScan.current = { code: codeBarre, a: Date.now() };
 
       setOccupe(true);
       setErreur(null);

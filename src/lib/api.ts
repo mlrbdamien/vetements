@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { VITRINE, demo } from './demo';
+import { definirSonde, estPanneReseau, signalerReseau } from './connexion';
 import type {
   BesoinPrevisionnel,
   ChezPrestataire,
@@ -53,16 +54,44 @@ function client() {
 async function rpc<T>(nom: string, args: Record<string, unknown>): Promise<T> {
   // Vitrine : aucun réseau, le modèle vit en mémoire (voir lib/demo.ts).
   if (VITRINE) return routerVitrine(nom, args) as Promise<T>;
-  const { data, error } = await client().rpc(nom, args);
-  if (error) throw erreurDeSupabase(error.message, error.code);
-  return data as T;
+  return surveiller(async () => {
+    const { data, error } = await client().rpc(nom, args);
+    if (error) throw erreurDeSupabase(error.message, error.code);
+    return data as T;
+  });
+}
+
+/**
+ * Enveloppe une requête pour tenir l'état de connexion à jour.
+ *
+ * Un refus métier remonte tel quel et compte comme une réussite réseau : la
+ * base a répondu. Seule une panne de transport bascule l'application hors
+ * ligne.
+ */
+async function surveiller<T>(faire: () => Promise<T>): Promise<T> {
+  try {
+    const r = await faire();
+    signalerReseau(true);
+    return r;
+  } catch (e) {
+    if (estPanneReseau(e)) {
+      signalerReseau(false);
+      throw new Error(
+        'La base est injoignable. Le mouvement n’a pas été enregistré — rien n’est mis en attente.',
+      );
+    }
+    signalerReseau(true);
+    throw e;
+  }
 }
 
 async function table<T>(nom: string, colonnes: string): Promise<T[]> {
   if (VITRINE) return routerVitrineTable(nom) as Promise<T[]>;
-  const { data, error } = await client().from(nom).select(colonnes);
-  if (error) throw erreurDeSupabase(error.message, error.code);
-  return (data ?? []) as T[];
+  return surveiller(async () => {
+    const { data, error } = await client().from(nom).select(colonnes);
+    if (error) throw erreurDeSupabase(error.message, error.code);
+    return (data ?? []) as T[];
+  });
 }
 
 // --- Lecture ---------------------------------------------------------------
@@ -469,4 +498,13 @@ function routerVitrineTable(nom: string): Promise<unknown[]> {
     default:
       throw new Error(`Vitrine : la vue « ${nom} » n'a pas d'équivalent hors ligne.`);
   }
+}
+
+
+/**
+ * Sonde de reprise. Hors ligne, plus aucune requête ne part : sans elle,
+ * l'application resterait bloquée après le retour de la base.
+ */
+if (!VITRINE) {
+  definirSonde(() => estAdmin());
 }

@@ -3,6 +3,7 @@ import {
   ChartNoAxesColumn,
   CircleHelp,
   Lock,
+  Menu,
   PackagePlus,
   ScanLine,
   Shirt,
@@ -107,27 +108,44 @@ export function Rail({
   onOnglet,
   admin,
   compteurs,
+  ouvert = false,
 }: {
   onglet: Onglet;
   onOnglet: (o: Onglet) => void;
   admin: boolean;
   compteurs: Compteurs | null;
+  /** Sur écran étroit, le rail est masqué tant qu'on ne l'ouvre pas. */
+  ouvert?: boolean;
 }) {
   return (
     <nav
-      className="rail-navigation w-[264px] shrink-0 bg-rail border-r border-line flex flex-col"
+      className={cn(
+        'rail-navigation shrink-0 bg-rail border-r border-line flex flex-col',
+        // En dessous de 768 px le rail sort du flux et se superpose : sur un
+        // écran étroit, lui garder 72 px reviendrait à amputer le contenu.
+        'max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:w-[264px]',
+        'max-md:transition-transform max-md:duration-200 motion-reduce:transition-none',
+        ouvert ? 'max-md:translate-x-0 max-md:shadow-modal' : 'max-md:-translate-x-full',
+        'md:w-[72px] xl:w-[264px]',
+      )}
       aria-label="Navigation principale"
     >
-      <div className="px-5 py-5 border-b border-line">
-        <p className="font-semibold tracking-[-0.015em] text-[17px] leading-tight">
+      <div className="px-5 py-5 border-b border-line md:px-4 xl:px-5">
+        <p className="font-semibold tracking-[-0.015em] text-[17px] leading-tight md:hidden xl:block">
           Vêtements de laboratoire
+        </p>
+        <p
+          aria-hidden="true"
+          className="hidden md:block xl:hidden text-[17px] font-semibold text-center"
+        >
+          V
         </p>
       </div>
 
       <div className="flex-1 overflow-y-auto py-3 flex flex-col gap-4">
         {GROUPES.map((g) => (
           <div key={g.titre} className="px-2.5">
-            <p className="etiquette px-2 mb-1.5">{g.titre}</p>
+            <p className="etiquette px-2 mb-1.5 md:hidden xl:block">{g.titre}</p>
             <div className="flex flex-col gap-0.5">
               {g.entrees.map((e) => {
                 const n = compteurs && e.compteur ? e.compteur(compteurs) : null;
@@ -141,6 +159,7 @@ export function Rail({
                     aria-current={actif ? 'page' : undefined}
                     className={cn(
                       'group flex items-center gap-2.5 rounded-control px-2.5 py-2.5 text-[15px] transition-colors cursor-pointer text-left',
+                      'md:justify-center md:px-0 xl:justify-start xl:px-2.5',
                       actif
                         ? 'bg-surface-1 text-ink font-semibold shadow-rail'
                         : 'text-ink-2 hover:bg-surface-2 hover:text-ink',
@@ -151,7 +170,9 @@ export function Rail({
                       strokeWidth={actif ? 2 : 1.75}
                       className={cn('shrink-0', actif ? 'text-accent' : 'text-ink-3')}
                     />
-                    <span className="flex-1 truncate">{e.libelle}</span>
+                    <span className="flex-1 truncate md:hidden xl:block">
+                      {e.libelle}
+                    </span>
 
                     {alerte && (
                       <span
@@ -163,7 +184,7 @@ export function Rail({
                         « Expédition 5 » sans dire 5 de quoi. */}
                     {n !== null && (
                       <span
-                        className="donnee text-[13px] text-ink-3 shrink-0"
+                        className="donnee text-[13px] text-ink-3 shrink-0 md:hidden xl:inline"
                         aria-label={`${n} en attente`}
                       >
                         {n}
@@ -176,7 +197,7 @@ export function Rail({
                       <Lock
                         size={11}
                         strokeWidth={2}
-                        className="text-ink-3 shrink-0 opacity-60"
+                        className="text-ink-3 shrink-0 opacity-60 md:hidden xl:block"
                         aria-label="réservé à l’administratrice"
                       />
                     )}
@@ -203,7 +224,7 @@ function EtatParc({ compteurs }: { compteurs: Compteurs }) {
   ];
 
   return (
-    <div className="border-t border-line px-5 py-4">
+    <div className="border-t border-line px-5 py-4 md:hidden xl:block">
       <p className="etiquette mb-2">Parc</p>
       <dl className="flex flex-col gap-1">
         {lignes.map((r) => (
@@ -237,16 +258,29 @@ export function EnteteEcran({
   actions,
   onAide,
   aideOuverte,
+  onMenu,
 }: {
   titre: string;
   contexte?: ReactNode;
   actions?: ReactNode;
   onAide?: () => void;
   aideOuverte?: boolean;
+  /** Ouvre le rail sur écran étroit, où il est masqué. */
+  onMenu?: () => void;
 }) {
   return (
     <header className="flex items-center justify-between gap-6 px-8 h-[60px] border-b border-line bg-surface-1 shrink-0">
       <div className="flex items-baseline gap-3 min-w-0">
+        {onMenu && (
+          <button
+            type="button"
+            onClick={onMenu}
+            aria-label="Ouvrir la navigation"
+            className="md:hidden inline-flex h-8 w-8 items-center justify-center rounded-control text-ink-2 hover:bg-surface-2 transition-colors cursor-pointer self-center -ml-1"
+          >
+            <Menu size={18} strokeWidth={1.75} />
+          </button>
+        )}
         <h1 className="text-[18px] font-semibold tracking-[-0.02em] shrink-0">
           {titre}
         </h1>

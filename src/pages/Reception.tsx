@@ -22,6 +22,7 @@ import {
   Alerte,
   Button,
   Card,
+  Chargement,
   CardHeader,
   EmptyState,
   Field,
@@ -43,6 +44,7 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
   const [erreur, setErreur] = useState<string | null>(null);
   const [bulletin, setBulletin] = useState<ResultatReception | null>(null);
   const [occupe, setOccupe] = useState(false);
+  const [chargement, setChargement] = useState(true);
   const champScan = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -51,7 +53,8 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
         setTypes(t.filter((x) => x.actif));
         setExpeditions(e);
       })
-      .catch((err: Error) => setErreur(err.message));
+      .catch((err: Error) => setErreur(err.message))
+      .finally(() => setChargement(false));
   }, []);
 
   useEffect(() => {
@@ -134,6 +137,11 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
   }
 
   const nouveaux = lignes.filter((l) => !l.connu).length;
+
+  // Sans les types, la fenêtre de création d'une référence inconnue serait
+  // vide : mieux vaut dire qu'on charge que d'afficher un formulaire inutilisable.
+  if (chargement && types.length === 0)
+    return <Chargement quoi="Préparation de l’entrée marchandise" />;
 
   return (
     <div className="space-y-5">

@@ -31,7 +31,14 @@ import {
   type StockDisponible,
 } from '../types';
 import { Tableau, type ColonneTableau } from '../components/Tableau';
-import { Alerte, Button, Card, cn, inputClass } from '../components/ui';
+import {
+  Alerte,
+  Button,
+  Card,
+  Chargement,
+  cn,
+  inputClass,
+} from '../components/ui';
 
 /** Au-delà, une pièce restée dehors mérite qu'on la réclame. */
 const JOURS_UTILISATION_SUSPECT = 21;
@@ -99,27 +106,30 @@ export function TableauxDeBord() {
 function useVue<T>(
   charger: () => Promise<T[]>,
   onErreur: (e: string) => void,
-): [T[], () => void] {
+): [T[], () => void, boolean] {
   const [lignes, setLignes] = useState<T[]>([]);
+  const [chargement, setChargement] = useState(true);
 
   const recharger = useCallback(() => {
+    setChargement(true);
     charger()
       .then(setLignes)
-      .catch((e: Error) => onErreur(e.message));
+      .catch((e: Error) => onErreur(e.message))
+      .finally(() => setChargement(false));
     // `charger` est recréé à chaque rendu par l'appelant ; le dépendre ici
     // bouclerait. La vue se recharge sur demande explicite.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(recharger, [recharger]);
-  return [lignes, recharger];
+  return [lignes, recharger, chargement];
 }
 
 /* --- Stock disponible et seuils ------------------------------------------ */
 
 function Stock({ onErreur }: { onErreur: (e: string) => void }) {
   const { admin } = useSession();
-  const [stock, recharger] = useVue<StockDisponible>(
+  const [stock, recharger, chargement] = useVue<StockDisponible>(
     lireStockDisponible,
     onErreur,
   );
@@ -173,6 +183,8 @@ function Stock({ onErreur }: { onErreur: (e: string) => void }) {
         ),
     },
   ];
+
+  if (chargement && stock.length === 0) return <Chargement quoi="Lecture du stock" />;
 
   return (
     <Tableau
@@ -269,7 +281,7 @@ function ChampSeuil({
 /* --- Chez le prestataire ------------------------------------------------------------ */
 
 function ChezPrestataireVue({ onErreur }: { onErreur: (e: string) => void }) {
-  const [lignes] = useVue<ChezPrestataire>(lireChezPrestataire, onErreur);
+  const [lignes, , chargement] = useVue<ChezPrestataire>(lireChezPrestataire, onErreur);
   const vieux = lignes.filter((l) => l.jours_chez_prestataire > JOURS_PRESTATAIRE_SUSPECT);
 
   const colonnes: ColonneTableau<ChezPrestataire>[] = [
@@ -311,6 +323,9 @@ function ChezPrestataireVue({ onErreur }: { onErreur: (e: string) => void }) {
     },
   ];
 
+  if (chargement && lignes.length === 0)
+    return <Chargement quoi="Lecture des pièces en lavage" />;
+
   return (
     <Tableau
       titre="Chez le prestataire"
@@ -339,7 +354,7 @@ function ChezPrestataireVue({ onErreur }: { onErreur: (e: string) => void }) {
 /* --- En utilisation ------------------------------------------------------- */
 
 function EnUtilisationVue({ onErreur }: { onErreur: (e: string) => void }) {
-  const [lignes] = useVue<EnUtilisation>(lireEnUtilisation, onErreur);
+  const [lignes, , chargement] = useVue<EnUtilisation>(lireEnUtilisation, onErreur);
   const orphelines = lignes.filter((l) => !l.detenteur_actif);
 
   const colonnes: ColonneTableau<EnUtilisation>[] = [
@@ -386,6 +401,9 @@ function EnUtilisationVue({ onErreur }: { onErreur: (e: string) => void }) {
     },
   ];
 
+  if (chargement && lignes.length === 0)
+    return <Chargement quoi="Lecture des sorties" />;
+
   return (
     <Tableau
       titre="En utilisation"
@@ -418,7 +436,7 @@ function EnUtilisationVue({ onErreur }: { onErreur: (e: string) => void }) {
 /* --- Contrôle de facturation ---------------------------------------------- */
 
 function Facturation({ onErreur }: { onErreur: (e: string) => void }) {
-  const [lignes] = useVue<ControleFacturation>(
+  const [lignes, , chargement] = useVue<ControleFacturation>(
     lireControleFacturation,
     onErreur,
   );
@@ -473,6 +491,9 @@ function Facturation({ onErreur }: { onErreur: (e: string) => void }) {
     },
   ];
 
+  if (chargement && lignes.length === 0)
+    return <Chargement quoi="Rapprochement des bulletins" />;
+
   return (
     <Tableau
       titre="Contrôle de facturation"
@@ -512,7 +533,7 @@ function Facturation({ onErreur }: { onErreur: (e: string) => void }) {
 /* --- Besoins prévisionnels ------------------------------------------------ */
 
 function Besoins({ onErreur }: { onErreur: (e: string) => void }) {
-  const [lignes] = useVue<BesoinPrevisionnel>(
+  const [lignes, , chargement] = useVue<BesoinPrevisionnel>(
     lireBesoinsPrevisionnels,
     onErreur,
   );
@@ -553,6 +574,9 @@ function Besoins({ onErreur }: { onErreur: (e: string) => void }) {
     },
   ];
 
+  if (chargement && lignes.length === 0)
+    return <Chargement quoi="Calcul des besoins" />;
+
   return (
     <div className="space-y-4">
       <Alerte ton="warning">
@@ -585,7 +609,7 @@ function Besoins({ onErreur }: { onErreur: (e: string) => void }) {
 /* --- Journal complet ------------------------------------------------------ */
 
 function Journal({ onErreur }: { onErreur: (e: string) => void }) {
-  const [lignes] = useVue<LigneJournal>(lireJournalComplet, onErreur);
+  const [lignes, , chargement] = useVue<LigneJournal>(lireJournalComplet, onErreur);
   const [occupe, setOccupe] = useState(false);
 
   const colonnes: ColonneTableau<LigneJournal>[] = [
@@ -720,6 +744,9 @@ function Journal({ onErreur }: { onErreur: (e: string) => void }) {
       setOccupe(false);
     }
   }
+
+  if (chargement && lignes.length === 0)
+    return <Chargement quoi="Lecture du journal" />;
 
   return (
     <div className="space-y-4">

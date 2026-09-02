@@ -162,9 +162,14 @@ export function Parc() {
         cle={(v) => v.vetement_id}
         nomExport="parc-vetements"
         vide={
-          terme
-            ? `Aucun vêtement ne correspond à « ${terme} ».`
-            : 'Le parc est vide.'
+          // Pendant la lecture, affirmer que le parc est vide est faux — et
+          // c'est ce que voit l'utilisateur pendant toute la durée de la
+          // requête, d'autant plus longtemps que la connexion est lente.
+          chargement
+            ? 'Lecture du parc…'
+            : terme
+              ? `Aucun vêtement ne correspond à « ${terme} ».`
+              : 'Le parc est vide.'
         }
         onLigne={setChoisi}
       />

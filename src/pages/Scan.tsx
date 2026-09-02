@@ -128,7 +128,10 @@ export function Scan({
 
   const champScan = useRef<HTMLInputElement>(null);
   const dernierScan = useRef<{ code: string; a: number } | null>(null);
-  useFocusScan(champScan, enLigne);
+  // Inclut `occupe` : le champ est désactivé pendant l'envoi, et un élément
+  // désactivé ne peut pas porter le focus. L'effet doit donc se rejouer
+  // quand il redevient actif, pas seulement quand la connexion revient.
+  useFocusScan(champScan, enLigne && !occupe);
 
   const rafraichirJournal = useCallback(() => {
     lireDerniersMouvements(9)

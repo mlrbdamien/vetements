@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { lireCompteurs } from '../lib/api';
 import { VITRINE } from '../lib/demo';
+import { SORTIES_ACTIVES } from '../lib/fonctionnalites';
 import type { Compteurs } from '../types';
 import { cn } from './ui';
 
@@ -56,7 +57,10 @@ const GROUPES: { titre: string; entrees: Entree[] }[] = [
         libelle: 'Expédition',
         icone: Truck,
         admin: true,
-        compteur: (c) => c.sale || null,
+        // Ce que l'écran Expédition liste : le stock, plus le linge sale si
+        // les sorties sont un jour réactivées. Le chiffre doit dire exactement
+        // ce que la liste montre.
+        compteur: (c) => c.en_stock + c.sale || null,
       },
       {
         id: 'reception',
@@ -216,11 +220,18 @@ export function Rail({
 
 /** Le pied de la barre : l'état du parc, toujours visible. */
 function EtatParc({ compteurs }: { compteurs: Compteurs }) {
+  // Sorties et corbeille n'apparaissent que si les opérateurs prennent
+  // leurs vêtements — masquées pour le moment, le modèle reste en place.
   const lignes = [
     { l: 'En stock', n: compteurs.en_stock, mal: compteurs.sous_seuil > 0 },
-    { l: 'Sorties', n: compteurs.en_utilisation, mal: false },
-    { l: 'Corbeille', n: compteurs.sale, mal: false },
+    ...(SORTIES_ACTIVES
+      ? [
+          { l: 'Sorties', n: compteurs.en_utilisation, mal: false },
+          { l: 'Corbeille', n: compteurs.sale, mal: false },
+        ]
+      : []),
     { l: 'Chez le prestataire', n: compteurs.chez_prestataire, mal: false },
+    { l: 'Au rebut', n: compteurs.rebut, mal: false },
   ];
 
   return (

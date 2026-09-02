@@ -21,6 +21,7 @@ import {
 } from '../lib/api';
 import { exporterClasseur, formatDate, formatHorodatage } from '../lib/export';
 import { useSession } from '../lib/session';
+import { SORTIES_ACTIVES } from '../lib/fonctionnalites';
 import {
   LIBELLE_MOUVEMENT,
   type BesoinPrevisionnel,
@@ -56,7 +57,11 @@ type Vue =
 const VUES: { id: Vue; libelle: string; icone: typeof Boxes }[] = [
   { id: 'stock', libelle: 'Stock', icone: Boxes },
   { id: 'prestataire', libelle: 'Chez le prestataire', icone: Hourglass },
-  { id: 'utilisation', libelle: 'En utilisation', icone: Clock },
+  // Les sorties sont masquées pour le moment : sans opérateur actif, cette
+  // vue serait toujours vide.
+  ...(SORTIES_ACTIVES
+    ? [{ id: 'utilisation' as Vue, libelle: 'En utilisation', icone: Clock }]
+    : []),
   { id: 'facturation', libelle: 'Facturation', icone: FileWarning },
   { id: 'besoins', libelle: 'Besoins', icone: TrendingUp },
   { id: 'journal', libelle: 'Journal', icone: Download },
@@ -151,10 +156,14 @@ function Stock({ onErreur }: { onErreur: (e: string) => void }) {
         </span>
       ),
     },
-    { cle: 'disponible_rebut', entete: 'Dont rebut', nombre: true, largeur: 11 },
-    { cle: 'en_utilisation', entete: 'En utilisation', nombre: true, largeur: 13 },
-    { cle: 'sale', entete: 'Sale', nombre: true, largeur: 8 },
+    ...(SORTIES_ACTIVES
+      ? [
+          { cle: 'en_utilisation' as const, entete: 'En utilisation', nombre: true, largeur: 13 },
+          { cle: 'sale' as const, entete: 'Sale', nombre: true, largeur: 8 },
+        ]
+      : []),
     { cle: 'chez_prestataire', entete: 'Chez le prestataire', nombre: true, largeur: 10 },
+    { cle: 'au_rebut', entete: 'Au rebut', nombre: true, largeur: 10 },
     { cle: 'parc_total', entete: 'Parc', nombre: true, largeur: 8 },
     {
       cle: 'minimum',
@@ -191,9 +200,9 @@ function Stock({ onErreur }: { onErreur: (e: string) => void }) {
       titre="Stock disponible"
       description={
         <>
-          Ce qui est en stock, prêt à sortir. Les pièces « rebut » sont comptées
-          à part : elles restent dans le parc mais sont réservées aux
-          stagiaires, et ne comblent donc pas un manque.
+          Ce qui est en stock au laboratoire, prêt à partir au lavage. Les
+          pièces au rebut sont comptées à part : rangées ailleurs, elles ne
+          circulent plus et ne comblent jamais un manque.
           {sansSeuil > 0 && (
             <>
               {' '}
@@ -689,10 +698,8 @@ function Journal({ onErreur }: { onErreur: (e: string) => void }) {
             { cle: 'type_libelle', entete: 'Type', largeur: 18 },
             { cle: 'taille', entete: 'Taille' },
             { cle: 'disponible', entete: 'Disponible' },
-            { cle: 'disponible_rebut', entete: 'Dont rebut' },
-            { cle: 'en_utilisation', entete: 'En utilisation' },
-            { cle: 'sale', entete: 'Sale' },
             { cle: 'chez_prestataire', entete: 'Chez le prestataire' },
+            { cle: 'au_rebut', entete: 'Au rebut' },
             { cle: 'parc_total', entete: 'Parc' },
             { cle: 'minimum', entete: 'Seuil' },
             { cle: 'manque', entete: 'Manque' },

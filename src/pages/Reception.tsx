@@ -86,7 +86,7 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
               code_barre: v.code_barre,
               connu: true,
               taille: v.taille,
-              rebut: v.rebut,
+              rebut: false,
               type_libelle: t?.libelle,
             },
           ]);
@@ -137,6 +137,7 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
   }
 
   const nouveaux = lignes.filter((l) => !l.connu).length;
+  const rebuts = lignes.filter((l) => l.connu && l.rebut).length;
 
   // Sans les types, la fenêtre de création d'une référence inconnue serait
   // vide : mieux vaut dire qu'on charge que d'afficher un formulaire inutilisable.
@@ -212,7 +213,8 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
           </div>
           <p className="text-xs text-ink-3 mt-1.5">
             Scannez chaque pièce du bac. Un code inconnu ouvre la création de la
-            référence.
+            référence. Pour une pièce connue, cochez « rebut » si le prestataire
+            l'a jugée hors d'usage : elle sera rangée à part et ne circulera plus.
           </p>
         </form>
       </Card>
@@ -238,11 +240,6 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
                     <p className="font-medium truncate">
                       {l.type_libelle ?? '—'}{' '}
                       <span className="text-ink-3">· taille {l.taille}</span>
-                      {l.rebut && (
-                        <span className="ml-2 align-middle rounded-full bg-warning-soft text-warning-text text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5">
-                          Rebut
-                        </span>
-                      )}
                       {!l.connu && (
                         <span className="ml-2 align-middle rounded-full bg-good-soft text-good-text text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5">
                           <Sparkles size={9} className="inline -mt-0.5 mr-0.5" />
@@ -252,6 +249,29 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
                     </p>
                     <p className="text-xs text-ink-3 tabular">{l.code_barre}</p>
                   </div>
+                  {l.connu && (
+                    <label
+                      className={cn(
+                        'flex items-center gap-2 text-sm cursor-pointer select-none shrink-0 rounded-control px-2.5 py-1.5 border transition-colors',
+                        l.rebut
+                          ? 'border-critical/40 bg-critical-soft text-critical-text font-medium'
+                          : 'border-line text-ink-2 hover:bg-surface-2',
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!!l.rebut}
+                        onChange={(e) =>
+                          setLignes((ls) =>
+                            ls.map((x, j) =>
+                              j === i ? { ...x, rebut: e.target.checked } : x,
+                            ),
+                          )
+                        }
+                      />
+                      Rebut
+                    </label>
+                  )}
                   <IconButton
                     icon={Trash2}
                     label={`Retirer ${l.code_barre} du bac`}
@@ -270,6 +290,7 @@ export function Reception({ enLigne }: { enLigne: boolean }) {
               {nouveaux > 0
                 ? `${nouveaux} référence${nouveaux > 1 ? 's' : ''} à créer`
                 : 'Aucune nouvelle référence'}
+              {rebuts > 0 && ` · ${rebuts} au rebut`}
             </p>
             <Button onClick={enregistrer} disabled={!enLigne || occupe}>
               <PackagePlus size={16} strokeWidth={1.75} />
@@ -313,12 +334,10 @@ function CreationReference({
 }) {
   const [typeId, setTypeId] = useState<number | null>(null);
   const [taille, setTaille] = useState<number | null>(null);
-  const [rebut, setRebut] = useState(false);
 
   useEffect(() => {
     setTypeId(null);
     setTaille(null);
-    setRebut(false);
   }, [codeBarre]);
 
   if (!codeBarre) return null;
@@ -366,22 +385,8 @@ function CreationReference({
         </div>
       </Field>
 
-      <label className="flex items-start gap-2.5 mb-5 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={rebut}
-          onChange={(e) => setRebut(e.target.checked)}
-          className="mt-0.5"
-        />
-        <span className="text-sm">
-          Rebut
-          <span className="block text-xs text-ink-3">
-            le prestataire l'a jugé hors d'usage mais le rend propre. La pièce reste dans
-            le parc et continue son cycle, réservée aux stagiaires.
-          </span>
-        </span>
-      </label>
-
+      {/* Pas de question de rebut ici : une pièce neuve n'a pas encore été
+          jugée. Le rebut se décide au retour d'une pièce connue. */}
       <div className="flex gap-2">
         <Button
           disabled={!typeId || !taille}
@@ -391,7 +396,7 @@ function CreationReference({
               connu: false,
               type_id: typeId!,
               taille: taille!,
-              rebut,
+              rebut: false,
               type_libelle: types.find((t) => t.id === typeId)?.libelle,
             })
           }
@@ -455,7 +460,7 @@ function BulletinReception({
           </div>
         </div>
 
-        <dl className="grid grid-cols-3 gap-4 text-sm mb-6">
+        <dl className="grid grid-cols-4 gap-4 text-sm mb-6">
           <div>
             <dt className="text-ink-3">Pièces reçues</dt>
             <dd className="text-xl font-semibold tabular">{bulletin.nb_recus}</dd>
@@ -467,6 +472,17 @@ function BulletinReception({
           <div>
             <dt className="text-ink-3">Nouvelles références</dt>
             <dd className="text-xl font-semibold tabular">{bulletin.nb_crees}</dd>
+          </div>
+          <div>
+            <dt className="text-ink-3">Passées au rebut</dt>
+            <dd
+              className={cn(
+                'text-xl font-semibold tabular',
+                bulletin.nb_rebuts > 0 && 'text-critical-text',
+              )}
+            >
+              {bulletin.nb_rebuts}
+            </dd>
           </div>
         </dl>
 

@@ -8,6 +8,7 @@ import type {
   ContexteScan,
   ControleFacturation,
   EnUtilisation,
+  Expediable,
   ExpeditionOuverte,
   LigneHistorique,
   LigneJournal,
@@ -164,6 +165,22 @@ export async function listerLingeSale(): Promise<LingeSale[]> {
   );
   return linge.sort(
     (a, b) => (b.jours_depuis_retour ?? 0) - (a.jours_depuis_retour ?? 0),
+  );
+}
+
+/**
+ * Le stock, prêt à partir au lavage — le plus ancien reçu d'abord.
+ *
+ * Depuis que les opérateurs ne prennent plus les vêtements, c'est cette liste
+ * que l'écran Expédition propose, et non la corbeille du linge sale.
+ */
+export async function listerExpediables(): Promise<Expediable[]> {
+  const stock = await table<Expediable>(
+    'v_expediable',
+    'vetement_id, code_barre, type_libelle, type_id, taille, nb_lavages, recu_le, jours_en_stock',
+  );
+  return stock.sort(
+    (a, b) => (b.jours_en_stock ?? 0) - (a.jours_en_stock ?? 0),
   );
 }
 
@@ -487,6 +504,8 @@ function routerVitrineTable(nom: string): Promise<unknown[]> {
       return demo.lireEnUtilisation();
     case 'v_linge_sale':
       return demo.lireLingeSale();
+    case 'v_expediable':
+      return demo.lireExpediables();
     case 'v_controle_facturation':
       return demo.lireControleFacturation();
     case 'v_besoins_previsionnels':

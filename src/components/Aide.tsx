@@ -12,17 +12,16 @@ import { X } from 'lucide-react';
 type Section = { titre: string; texte: ReactNode };
 
 const CYCLE = [
-  ['Réception', 'Le prestataire livre — la pièce entre en stock'],
-  ['Sortie', 'un opérateur la prend, elle lui est rattachée'],
-  ['Retour sale', 'elle rejoint la corbeille'],
-  ['Envoi au prestataire', 'elle part au lavage'],
+  ['Réception', 'le prestataire livre — la pièce entre en stock au laboratoire'],
+  ['Envoi au prestataire', 'elle part au lavage, avec un bulletin'],
+  ['Réception', 'elle revient propre — ou passe au rebut si elle est hors d’usage'],
 ] as const;
 
 function Cycle() {
   return (
     <ol className="space-y-2.5">
       {CYCLE.map(([nom, quoi], i) => (
-        <li key={nom} className="flex gap-2.5">
+        <li key={i} className="flex gap-2.5">
           <span className="shrink-0 grid place-items-center h-5 w-5 rounded-full bg-surface-2 text-[11px] font-semibold text-ink-3 tabular">
             {i + 1}
           </span>
@@ -69,12 +68,12 @@ export const AIDES: Record<string, { titre: string; sections: Section[] }> = {
       {
         titre: 'Ce qui est listé',
         texte:
-          'Tout ce qui a été rendu sale et n’est pas encore parti. Les plus anciennes pièces sont en tête.',
+          'Tout le stock du laboratoire. Les pièces reçues depuis le plus longtemps sont en tête.',
       },
       {
         titre: 'Ce que vous ne cochez pas',
         texte:
-          'reste dans la corbeille et repart au bulletin suivant. C’est voulu : une pièce marquée sale mais absente du bac ne sera jamais scannée, et son compteur de jours montera — c’est ainsi qu’on repère les vêtements égarés.',
+          'reste en stock au laboratoire, disponible. Rien ne part sans avoir été scanné ou coché.',
       },
       {
         titre: 'Le bulletin part avec le bac',
@@ -84,7 +83,7 @@ export const AIDES: Record<string, { titre: string; sections: Section[] }> = {
       {
         titre: 'Tout ou rien',
         texte:
-          'L’envoi est enregistré en une seule fois. Si une pièce n’est plus dans la corbeille, rien n’est enregistré et le message la nomme.',
+          'L’envoi est enregistré en une seule fois. Si une pièce n’est plus en stock, rien n’est enregistré et le message la nomme.',
       },
     ],
   },
@@ -95,7 +94,7 @@ export const AIDES: Record<string, { titre: string; sections: Section[] }> = {
       {
         titre: 'Code-barre inconnu',
         texte:
-          'C’est normal : le prestataire fournit les vêtements autant qu’il les lave. Une fenêtre s’ouvre pour créer la référence — type, taille, rebut.',
+          'C’est normal : le prestataire fournit les vêtements autant qu’il les lave. Une fenêtre s’ouvre pour créer la référence — type et taille.',
       },
       {
         titre: 'Rattacher à un envoi',
@@ -110,7 +109,7 @@ export const AIDES: Record<string, { titre: string; sections: Section[] }> = {
       {
         titre: 'Rebut',
         texte:
-          'Le prestataire a jugé la pièce hors d’usage mais la rend propre. Elle reste dans le parc et continue son cycle, réservée aux stagiaires.',
+          'Le prestataire a jugé la pièce hors d’usage mais la rend propre. Cochez « rebut » sur sa ligne : elle sera rangée à part et ne circulera plus. La question ne se pose jamais pour une pièce neuve.',
       },
       {
         titre: 'Rien n’est écrit avant validation',
@@ -157,7 +156,7 @@ export const AIDES: Record<string, { titre: string; sections: Section[] }> = {
       {
         titre: 'Les rebuts ne comblent pas un manque',
         texte:
-          'Ils sont comptés à part : réservés aux stagiaires, ils ne remplacent pas une pièce ordinaire.',
+          'Ils sont comptés à part : rangés ailleurs, ils ne circulent plus et ne remplacent pas une pièce disponible.',
       },
       {
         titre: 'Facturation',

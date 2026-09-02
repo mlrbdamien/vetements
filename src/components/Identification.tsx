@@ -3,7 +3,8 @@ import { LogIn } from 'lucide-react';
 import { listerOperateurs, verifierPin } from '../lib/api';
 import { useOperateur } from '../lib/operateur';
 import { nomComplet, type Operateur } from '../types';
-import { Alerte, Button, cn, inputClass } from './ui';
+import { Alerte, Button, EmptyState, cn, inputClass } from './ui';
+import { Users } from 'lucide-react';
 
 /**
  * Garde les écrans opérateur : affiche l'identification tant que personne
@@ -21,6 +22,7 @@ function Identification() {
   const [pin, setPin] = useState('');
   const [erreur, setErreur] = useState<string | null>(null);
   const [occupe, setOccupe] = useState(false);
+  const [charge, setCharge] = useState(false);
   const champPin = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -28,7 +30,8 @@ function Identification() {
       // Un opérateur désactivé disparaît d'ici, mais reste partout dans
       // l'historique : désactiver n'efface pas le passé.
       .then((tous) => setOperateurs(tous.filter((o) => o.actif)))
-      .catch((e: Error) => setErreur(e.message));
+      .catch((e: Error) => setErreur(e.message))
+      .finally(() => setCharge(true));
   }, []);
 
   useEffect(() => {
@@ -68,6 +71,16 @@ function Identification() {
           Sélectionnez votre nom, puis saisissez votre code à 4 chiffres.
         </p>
       </div>
+
+      {/* Les opérateurs ne prennent pas leurs vêtements pour le moment : cet
+          écran reste en place pour le jour où ils le feront, et dit pourquoi
+          il est vide plutôt que d'afficher une grille sans rien dedans. */}
+      {charge && operateurs.length === 0 && (
+        <EmptyState icon={Users} titre="Aucun opérateur actif">
+          Le scan par les opérateurs n’est pas en service. L’administratrice
+          les crée ou les réactive depuis l’onglet Opérateurs le moment venu.
+        </EmptyState>
+      )}
 
       {/* Des tuiles larges, pas des boutons : on les vise debout, parfois avec
           une douchette dans l'autre main. */}

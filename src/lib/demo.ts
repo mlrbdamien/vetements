@@ -14,6 +14,7 @@ import type {
   BesoinPrevisionnel,
   ChezPrestataire,
   Compteurs,
+  Expediable,
   ContexteScan,
   ControleFacturation,
   EnUtilisation,
@@ -59,7 +60,7 @@ interface MouvementInterne {
 
 const TYPES: TypeVetement[] = [
   { id: 1, libelle: 'Blouse bleue', ordre: 1, actif: true },
-  { id: 2, libelle: 'Blouse balance', ordre: 2, actif: true },
+  { id: 2, libelle: 'Blouse blanche', ordre: 2, actif: true },
   { id: 3, libelle: 'Tunique', ordre: 3, actif: true },
   { id: 4, libelle: 'Pantalon', ordre: 4, actif: true },
   { id: 5, libelle: 'Chaussettes', ordre: 5, actif: true },
@@ -144,7 +145,7 @@ function amorcerParc() {
           code_barre: `LAB-${String(id).padStart(4, '0')}`,
           type_id: type.id,
           taille,
-          rebut: id % 9 === 0,
+          rebut: false,
           statut: 'nouveau',
           nb_lavages: 0,
           detenteur_id: null,
@@ -168,6 +169,12 @@ function amorcerParc() {
     // contrôle de facturation doit chiffrer.
     if (v.id === 7) continue;
     ajouterMouvement(v.id, 'RECEPTION', 2, 20, 2);
+    // Une pièce revient hors d'usage : le prestataire la rend propre, elle
+    // passe au rebut et ne bouge plus.
+    if (v.id === 9) {
+      ajouterMouvement(v.id, 'MISE_AU_REBUT', 2, 20, 2);
+      continue;
+    }
 
     // Second cycle, partiel : chaque pièce s'arrête à un endroit différent.
     const reste = v.id % 5;
@@ -192,10 +199,13 @@ function recalculer(vetementId: number) {
   let statut: StatutVetement = 'nouveau';
   let lavages = 0;
   let detenteur: number | null = null;
+  let rebut = false;
 
   MOUVEMENTS.filter((m) => m.vetement_id === vetementId && !m.annule)
     .sort((a, b) => a.horodatage.localeCompare(b.horodatage) || a.id - b.id)
     .forEach((m) => {
+      // Un rebut ne bouge plus : tout mouvement qui suivrait est ignoré.
+      if (rebut) return;
       switch (m.type) {
         case 'RECEPTION':
           // Le compteur ne monte qu'au retour de chez le prestataire.
@@ -215,12 +225,18 @@ function recalculer(vetementId: number) {
           statut = 'chez_prestataire';
           detenteur = null;
           break;
+        case 'MISE_AU_REBUT':
+          statut = 'rebut';
+          rebut = true;
+          detenteur = null;
+          break;
       }
     });
 
   v.statut = statut;
   v.nb_lavages = lavages;
   v.detenteur_id = detenteur;
+  v.rebut = rebut;
 }
 
 amorcerDocuments();
@@ -240,6 +256,7 @@ const libelleStatut: Record<StatutVetement, string> = {
   en_utilisation: 'en utilisation',
   sale: 'linge sale',
   chez_prestataire: 'chez le prestataire',
+  rebut: 'au rebut',
 };
 
 /* --- API ----------------------------------------------------------------- */
@@ -301,19 +318,27 @@ export const demo = {
         throw new ErreurVitrine(
           `Ce vêtement est chez le prestataire depuis le ${dateFr(dernier?.horodatage ?? v.cree_le)}. Il doit être réceptionné avant d'être repris.`,
         );
+      } else if (v.statut === 'rebut') {
+        throw new ErreurVitrine('Ce vêtement est au rebut : il ne circule plus.');
       } else {
         throw new ErreurVitrine(
           "Ce vêtement n'a jamais été réceptionné. Passez par l'entrée marchandise.",
         );
       }
     } else if (contexte === 'expedition') {
-      if (v.statut !== 'sale') {
+      if (v.statut === 'rebut') {
+        throw new ErreurVitrine('Ce vêtement est au rebut : il ne part plus au lavage.');
+      }
+      if (v.statut !== 'en_stock' && v.statut !== 'sale') {
         throw new ErreurVitrine(
-          `Seul le linge sale part chez le prestataire. Ce vêtement est actuellement « ${libelleStatut[v.statut]} ».`,
+          `Ce vêtement n'est pas en stock : il est « ${libelleStatut[v.statut]} ». Impossible de l'expédier.`,
         );
       }
       type = 'ENVOI_PRESTATAIRE';
     } else {
+      if (v.statut === 'rebut') {
+        throw new ErreurVitrine('Ce vêtement est au rebut : il ne peut plus être réceptionné.');
+      }
       if (v.statut !== 'nouveau' && v.statut !== 'chez_prestataire') {
         throw new ErreurVitrine(
           `Ce vêtement n'était pas chez le prestataire : il est « ${libelleStatut[v.statut]} ». Réception impossible.`,
@@ -379,6 +404,7 @@ export const demo = {
       expeditions_ouvertes: DOCUMENTS.filter(
         (d) => d.genre === 'expedition' && !DOCUMENTS.some((r) => r.expedition_liee_id === d.id),
       ).length,
+      rebut: par('rebut'),
     };
   },
 
@@ -470,14 +496,14 @@ export const demo = {
         const lot = VETEMENTS.filter((v) => v.type_id === ti && v.taille === ta);
         const compte = (s: StatutVetement, rebut?: boolean) =>
           lot.filter((v) => v.statut === s && (rebut === undefined || v.rebut === rebut)).length;
-        const dispo = compte('en_stock', false);
+        const dispo = compte('en_stock');
         const minimum = seuils[cle] ?? null;
         return {
           type_id: ti!,
           type_libelle: typeLibelle(ti!),
           taille: ta!,
           disponible: dispo,
-          disponible_rebut: compte('en_stock', true),
+          au_rebut: compte('rebut'),
           en_utilisation: compte('en_utilisation'),
           sale: compte('sale'),
           chez_prestataire: compte('chez_prestataire'),
@@ -548,6 +574,27 @@ export const demo = {
         };
       })
       .sort((a, b) => (b.jours_depuis_retour ?? 0) - (a.jours_depuis_retour ?? 0));
+  },
+
+  /** Le stock du laboratoire, prêt à partir au lavage. */
+  async lireExpediables(): Promise<Expediable[]> {
+    return VETEMENTS.filter((v) => v.statut === 'en_stock' || v.statut === 'sale')
+      .map((v) => {
+        const m = MOUVEMENTS.filter(
+          (x) => x.vetement_id === v.id && x.type === 'RECEPTION' && !x.annule,
+        ).at(-1);
+        return {
+          vetement_id: v.id,
+          code_barre: v.code_barre,
+          type_libelle: typeLibelle(v.type_id),
+          type_id: v.type_id,
+          taille: v.taille,
+          nb_lavages: v.nb_lavages,
+          recu_le: m?.horodatage ?? null,
+          jours_en_stock: m ? Math.floor((Date.now() - Date.parse(m.horodatage)) / jour) : null,
+        };
+      })
+      .sort((a, b) => (b.jours_en_stock ?? 0) - (a.jours_en_stock ?? 0));
   },
 
   async lireControleFacturation(): Promise<ControleFacturation[]> {

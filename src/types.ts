@@ -5,13 +5,16 @@ export type StatutVetement =
   | 'en_stock'
   | 'en_utilisation'
   | 'sale'
-  | 'chez_prestataire';
+  | 'chez_prestataire'
+  /** État final : rangé à part, ne circule plus. Décidé à la réception. */
+  | 'rebut';
 
 export type TypeMouvement =
   | 'RECEPTION'
   | 'SORTIE'
   | 'RETOUR_SALE'
-  | 'ENVOI_PRESTATAIRE';
+  | 'ENVOI_PRESTATAIRE'
+  | 'MISE_AU_REBUT';
 
 /** Le contexte restreint, côté base, les actions déductibles d'un scan. */
 export type ContexteScan = 'scan' | 'expedition' | 'reception';
@@ -56,6 +59,18 @@ export interface LingeSale {
   rebut: boolean;
   retour_le: string | null;
   jours_depuis_retour: number | null;
+}
+
+/** Vue `v_expediable` — le stock, tel que l'écran Expédition le propose. */
+export interface Expediable {
+  vetement_id: number;
+  code_barre: string;
+  type_libelle: string;
+  type_id: number;
+  taille: number;
+  nb_lavages: number;
+  recu_le: string | null;
+  jours_en_stock: number | null;
 }
 
 /** Retour de `enregistrer_expedition`. */
@@ -129,6 +144,8 @@ export interface ResultatReception {
   nb_crees: number;
   /** Pièces qui revenaient de chez le prestataire : les seules dont le compteur monte. */
   nb_laves: number;
+  /** Pièces passées au rebut à cette réception. */
+  nb_rebuts: number;
   expedition: string | null;
   lignes: {
     code_barre: string;
@@ -152,6 +169,8 @@ export interface Compteurs {
   detenteurs_inactifs: number;
   /** Expéditions dont le retour n'est pas encore arrivé. */
   expeditions_ouvertes: number;
+  /** Pièces au rebut : rangées à part, ne circulent plus. */
+  rebut: number;
 }
 
 /* --- Lot 4 : fiche vêtement et tableaux de bord -------------------------- */
@@ -193,7 +212,8 @@ export interface StockDisponible {
   type_libelle: string;
   taille: number;
   disponible: number;
-  disponible_rebut: number;
+  /** Au rebut : compté à part, ne comble jamais un manque. */
+  au_rebut: number;
   en_utilisation: number;
   sale: number;
   chez_prestataire: number;
@@ -282,6 +302,7 @@ export const LIBELLE_STATUT: Record<StatutVetement, string> = {
   en_utilisation: 'En utilisation',
   sale: 'Linge sale',
   chez_prestataire: 'Chez le prestataire',
+  rebut: 'Au rebut',
 };
 
 export const LIBELLE_MOUVEMENT: Record<TypeMouvement, string> = {
@@ -289,6 +310,7 @@ export const LIBELLE_MOUVEMENT: Record<TypeMouvement, string> = {
   SORTIE: 'Sortie',
   RETOUR_SALE: 'Retour sale',
   ENVOI_PRESTATAIRE: 'Envoi chez le prestataire',
+  MISE_AU_REBUT: 'Mise au rebut',
 };
 
 export function nomComplet(o: Pick<Operateur, 'prenom' | 'nom'>): string {

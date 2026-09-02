@@ -12,11 +12,10 @@ import {
   Printer,
   ScanLine,
   Square,
-  TriangleAlert,
   Truck,
 } from 'lucide-react';
-import { enregistrerExpedition, listerLingeSale } from '../lib/api';
-import type { LingeSale, ResultatExpedition } from '../types';
+import { enregistrerExpedition, listerExpediables } from '../lib/api';
+import type { Expediable, ResultatExpedition } from '../types';
 import {
   Alerte,
   Button,
@@ -29,17 +28,13 @@ import {
 } from '../components/ui';
 
 /**
- * Au-delà de ce délai, un vêtement qui traîne dans la corbeille sans jamais
- * être scanné est probablement égaré : il est marqué sale dans l'app mais
- * absent du bac.
- *
- * Seuil provisoire — la cadence réelle des envois chez le prestataire n'est pas connue.
- * À confirmer avec l'administratrice une fois quelques bulletins passés.
+ * L'écran propose le STOCK, pas une corbeille : les opérateurs ne prennent
+ * pas leurs vêtements pour le moment, une pièce est donc soit au laboratoire,
+ * soit chez le prestataire, soit au rebut. Ce qui n'est ni scanné ni coché
+ * reste simplement en stock — ce n'est pas un signal d'égarement.
  */
-const JOURS_SUSPECT = 14;
-
 export function Expedition({ enLigne }: { enLigne: boolean }) {
-  const [linge, setLinge] = useState<LingeSale[]>([]);
+  const [stock, setLinge] = useState<Expediable[]>([]);
   const [chargement, setChargement] = useState(true);
   const [coches, setCoches] = useState<Set<number>>(new Set());
   const [code, setCode] = useState('');
@@ -51,7 +46,7 @@ export function Expedition({ enLigne }: { enLigne: boolean }) {
   const charger = useCallback(async () => {
     setChargement(true);
     try {
-      setLinge(await listerLingeSale());
+      setLinge(await listerExpediables());
       setCoches(new Set());
     } catch (err) {
       setErreur((err as Error).message);
@@ -79,20 +74,20 @@ export function Expedition({ enLigne }: { enLigne: boolean }) {
       const cherche = code.trim().toLowerCase();
       if (!cherche) return;
 
-      const trouve = linge.find((l) => l.code_barre.toLowerCase() === cherche);
+      const trouve = stock.find((l) => l.code_barre.toLowerCase() === cherche);
       setCode('');
       champScan.current?.focus();
 
       if (!trouve) {
         setErreur(
-          `Le code ${code.trim()} n'est pas dans la corbeille. Vérifiez qu'il a bien été rendu sale, ou saisissez-le à l'écran Scan.`,
+          `Le code ${code.trim()} n'est pas en stock : il est peut-être déjà chez le prestataire, ou au rebut.`,
         );
         return;
       }
       setErreur(null);
       setCoches((s) => new Set(s).add(trouve.vetement_id));
     },
-    [code, linge],
+    [code, stock],
   );
 
   const basculer = useCallback((id: number) => {
@@ -121,8 +116,8 @@ export function Expedition({ enLigne }: { enLigne: boolean }) {
   }, [coches, occupe, charger]);
 
   const restants = useMemo(
-    () => linge.filter((l) => !coches.has(l.vetement_id)),
-    [linge, coches],
+    () => stock.filter((l) => !coches.has(l.vetement_id)),
+    [stock, coches],
   );
 
   if (bulletin) {
@@ -137,8 +132,8 @@ export function Expedition({ enLigne }: { enLigne: boolean }) {
     );
   }
 
-  if (chargement && linge.length === 0)
-    return <Chargement quoi="Lecture de la corbeille" />;
+  if (chargement && stock.length === 0)
+    return <Chargement quoi="Lecture du stock" />;
 
   return (
     <div className="space-y-5">
@@ -148,7 +143,7 @@ export function Expedition({ enLigne }: { enLigne: boolean }) {
           title="Expédition vers le prestataire"
           action={
             <span className="text-sm text-ink-3 tabular">
-              {coches.size} / {linge.length}
+              {coches.size} / {stock.length}
             </span>
           }
         />
@@ -158,7 +153,7 @@ export function Expedition({ enLigne }: { enLigne: boolean }) {
               ref={champScan}
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              disabled={!enLigne || occupe || linge.length === 0}
+              disabled={!enLigne || occupe || stock.length === 0}
               autoComplete="off"
               spellCheck={false}
               aria-label="Code-barre à confirmer"
@@ -178,17 +173,17 @@ export function Expedition({ enLigne }: { enLigne: boolean }) {
           </div>
           <p className="text-xs text-ink-3 mt-1.5">
             Scannez chaque pièce en la posant dans le bac, ou cochez-la à la
-            main. Ce qui n'est ni scanné ni coché reste dans la corbeille.
+            main. Ce qui n'est ni scanné ni coché reste en stock.
           </p>
         </form>
       </Card>
 
       {erreur && <Alerte>{erreur}</Alerte>}
 
-      {linge.length === 0 ? (
+      {stock.length === 0 ? (
         <Card>
-          <EmptyState icon={PackageCheck} titre="La corbeille est vide">
-            Rien n'attend de partir chez le prestataire.
+          <EmptyState icon={PackageCheck} titre="Le stock est vide">
+            Aucune pièce au laboratoire : tout est chez le prestataire, ou au rebut.
           </EmptyState>
         </Card>
       ) : (
@@ -199,13 +194,13 @@ export function Expedition({ enLigne }: { enLigne: boolean }) {
               size="sm"
               onClick={() =>
                 setCoches(
-                  coches.size === linge.length
+                  coches.size === stock.length
                     ? new Set()
-                    : new Set(linge.map((l) => l.vetement_id)),
+                    : new Set(stock.map((l) => l.vetement_id)),
                 )
               }
             >
-              {coches.size === linge.length ? (
+              {coches.size === stock.length ? (
                 <>
                   <Square size={15} strokeWidth={1.75} />
                   Tout décocher
@@ -230,9 +225,8 @@ export function Expedition({ enLigne }: { enLigne: boolean }) {
 
           <Card padded={false}>
             <ul className="divide-y divide-line">
-              {linge.map((l) => {
+              {stock.map((l) => {
                 const coche = coches.has(l.vetement_id);
-                const suspect = (l.jours_depuis_retour ?? 0) >= JOURS_SUSPECT;
                 return (
                   <li key={l.vetement_id}>
                     <button
@@ -264,33 +258,17 @@ export function Expedition({ enLigne }: { enLigne: boolean }) {
                         <span className="block font-medium truncate">
                           {l.type_libelle}{' '}
                           <span className="text-ink-3">· taille {l.taille}</span>
-                          {l.rebut && (
-                            <span className="ml-2 align-middle rounded-full bg-warning-soft text-warning-text text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5">
-                              Rebut
-                            </span>
-                          )}
                         </span>
                         <span className="block text-xs text-ink-3 tabular">
                           {l.code_barre}
                         </span>
                       </span>
 
-                      <span
-                        className={cn(
-                          'text-xs shrink-0 text-right',
-                          suspect ? 'text-critical-text font-medium' : 'text-ink-3',
-                        )}
-                      >
-                        {suspect && (
-                          <TriangleAlert
-                            size={13}
-                            strokeWidth={2}
-                            className="inline mr-1 -mt-0.5"
-                          />
-                        )}
-                        {l.jours_depuis_retour === 0
-                          ? "aujourd'hui"
-                          : `${l.jours_depuis_retour} j`}
+                      <span className="text-xs shrink-0 text-right text-ink-3 tabular">
+                        {l.nb_lavages} lav. ·{' '}
+                        {l.jours_en_stock === 0
+                          ? "reçu aujourd'hui"
+                          : `en stock ${l.jours_en_stock} j`}
                       </span>
                     </button>
                   </li>
@@ -303,8 +281,7 @@ export function Expedition({ enLigne }: { enLigne: boolean }) {
             <Alerte ton="warning">
               {restants.length} pièce{restants.length > 1 ? 's' : ''} ne partira
               {restants.length > 1 ? 'ont' : ''} pas et restera
-              {restants.length > 1 ? 'ont' : ''} dans la corbeille pour le
-              prochain bulletin.
+              {restants.length > 1 ? 'ont' : ''} en stock au laboratoire.
             </Alerte>
           )}
         </>
@@ -329,7 +306,7 @@ function BulletinEmis({
           <Printer size={16} strokeWidth={1.75} />
           Imprimer
         </Button>
-        <Button onClick={onSuivant}>Retour à la corbeille</Button>
+        <Button onClick={onSuivant}>Retour au stock</Button>
       </div>
 
       <Card className="print:border-0 print:shadow-none">
@@ -396,14 +373,14 @@ function BulletinEmis({
       </Card>
 
       {/* Hors du bulletin, et hors de l'impression : ce qui n'est pas parti
-          regarde l’établissement, pas le prestataire. C'est le signal des égarés. */}
+          regarde l’établissement, pas le prestataire. */}
       {bulletin.restants.length > 0 && (
         <Card className="print:hidden">
           <CardHeader
-            icon={TriangleAlert}
+            icon={PackageCheck}
             title={`${bulletin.restants.length} pièce${
               bulletin.restants.length > 1 ? 's' : ''
-            } restée${bulletin.restants.length > 1 ? 's' : ''} en corbeille`}
+            } restée${bulletin.restants.length > 1 ? 's' : ''} en stock`}
           />
           <ul className="text-sm divide-y divide-line">
             {bulletin.restants.map((r) => (
@@ -417,14 +394,7 @@ function BulletinEmis({
                 </span>
                 <span className="flex items-center gap-4">
                   <span className="tabular text-ink-3">{r.code_barre}</span>
-                  <span
-                    className={cn(
-                      'tabular text-xs w-14 text-right',
-                      (r.jours ?? 0) >= JOURS_SUSPECT
-                        ? 'text-critical-text font-medium'
-                        : 'text-ink-3',
-                    )}
-                  >
+                  <span className="tabular text-xs w-14 text-right text-ink-3">
                     {r.jours} j
                   </span>
                 </span>
@@ -432,9 +402,8 @@ function BulletinEmis({
             ))}
           </ul>
           <p className="text-xs text-ink-3 mt-4">
-            Ces pièces sont marquées sales dans l'app mais n'étaient pas dans le
-            bac. Elles reviendront au prochain bulletin ; si le compteur de
-            jours continue de monter, elles sont probablement égarées.
+            Ces pièces n'ont été ni scannées ni cochées : elles restent
+            disponibles au laboratoire.
           </p>
         </Card>
       )}

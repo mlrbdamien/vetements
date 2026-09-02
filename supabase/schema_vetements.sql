@@ -31,17 +31,35 @@ grant usage on schema extensions to authenticated;
 
 do $$ begin
   create type statut_vetement as enum
-    ('nouveau', 'en_stock', 'en_utilisation', 'sale', 'chez_prestataire');
+    ('nouveau', 'en_stock', 'en_utilisation', 'sale', 'chez_prestataire', 'rebut');
 exception when duplicate_object then null; end $$;
 
 do $$ begin
   create type type_mouvement as enum
-    ('RECEPTION', 'SORTIE', 'RETOUR_SALE', 'ENVOI_PRESTATAIRE');
+    ('RECEPTION', 'SORTIE', 'RETOUR_SALE', 'ENVOI_PRESTATAIRE', 'MISE_AU_REBUT');
 exception when duplicate_object then null; end $$;
 
 do $$ begin
   create type genre_document as enum ('expedition', 'reception');
 exception when duplicate_object then null; end $$;
+
+
+-- ---------------------------------------------------------------------------
+-- Valeurs ajoutées après la mise en service.
+--
+-- Le rebut est devenu un ÉTAT : un vêtement au rebut est rangé ailleurs que
+-- les pièces fonctionnelles et ne circule plus. Il est décidé à la réception
+-- d'une pièce connue, jamais à la création.
+--
+-- `add value` ne peut pas être suivi d'un usage de la valeur dans la même
+-- transaction, et l'éditeur SQL de Supabase exécute un collage entier comme
+-- une seule transaction implicite : le `commit` qui suit est indispensable.
+-- Sans effet quand chaque instruction s'exécute déjà séparément.
+-- ---------------------------------------------------------------------------
+
+alter type statut_vetement add value if not exists 'rebut';
+alter type type_mouvement  add value if not exists 'MISE_AU_REBUT';
+commit;
 
 
 -- Une fonction ne peut pas voir son paramètre renommé par CREATE OR REPLACE :
@@ -94,12 +112,16 @@ insert into type_vetement (libelle, ordre)
 select v.libelle, v.ordre
   from (values
     ('Blouse bleue',   1),
-    ('Blouse balance', 2),
+    ('Blouse blanche', 2),
     ('Tunique',        3),
     ('Pantalon',       4),
     ('Chaussettes',    5)
   ) as v(libelle, ordre)
  where not exists (select 1 from type_vetement);
+
+-- Correction d'une amorce erronée : le libellé était « Blouse balance ».
+-- Sans effet une fois appliquée.
+update type_vetement set libelle = 'Blouse blanche' where libelle = 'Blouse balance';
 
 comment on table type_vetement is
   'Types éditables depuis l''admin — d''où une table plutôt qu''un enum. Les chaussettes portent un code-barre par PAIRE.';
@@ -283,6 +305,7 @@ declare
   v_statut    statut_vetement := 'nouveau';
   v_lavages   integer := 0;
   v_detenteur bigint := null;
+  v_rebut     boolean := false;
 begin
   for m in
     select type, operateur_id
@@ -290,6 +313,13 @@ begin
      where vetement_id = p_vetement_id and not annule
      order by horodatage, id
   loop
+    -- Un rebut ne bouge plus : tout mouvement qui suivrait est ignoré au
+    -- rejeu. L'insertion est déjà refusée en amont ; ceci protège l'état si
+    -- un jour une annulation réordonnait le journal.
+    if v_rebut then
+      continue;
+    end if;
+
     case m.type
       when 'RECEPTION' then
         -- Le compteur ne monte QUE si le vêtement revenait de chez le prestataire.
@@ -308,11 +338,18 @@ begin
       when 'ENVOI_PRESTATAIRE' then
         v_statut := 'chez_prestataire';
         v_detenteur := null;
+      when 'MISE_AU_REBUT' then
+        v_statut := 'rebut';
+        v_rebut := true;
+        v_detenteur := null;
     end case;
   end loop;
 
+  -- `rebut` est désormais dérivé comme les trois autres colonnes : le journal
+  -- est la seule source, y compris pour ce qui ne bouge plus.
   update vetement
-     set statut = v_statut, nb_lavages = v_lavages, detenteur_id = v_detenteur
+     set statut = v_statut, nb_lavages = v_lavages,
+         detenteur_id = v_detenteur, rebut = v_rebut
    where id = p_vetement_id;
 end $$;
 
@@ -403,16 +440,26 @@ begin
       when 'chez_prestataire' then
         raise exception 'Ce vêtement est chez le prestataire depuis le %. Il doit être réceptionné avant d''être repris.',
           to_char(v_depuis, 'DD.MM.YYYY');
+      when 'rebut' then
+        raise exception 'Ce vêtement est au rebut : il ne circule plus.';
     end case;
 
   elsif p_contexte = 'expedition' then
-    if v.statut <> 'sale' then
-      raise exception 'Seul le linge sale part chez le prestataire. Ce vêtement est actuellement « % ».',
+    -- Part au lavage ce qui est en stock — ou, si les sorties sont un jour
+    -- réactivées, ce qui est revenu sale.
+    if v.statut = 'rebut' then
+      raise exception 'Ce vêtement est au rebut : il ne part plus au lavage.';
+    end if;
+    if v.statut not in ('en_stock', 'sale') then
+      raise exception 'Ce vêtement n''est pas en stock : il est « % ». Impossible de l''expédier.',
         replace(v.statut::text, '_', ' ');
     end if;
     v_type := 'ENVOI_PRESTATAIRE';
 
   elsif p_contexte = 'reception' then
+    if v.statut = 'rebut' then
+      raise exception 'Ce vêtement est au rebut : il ne peut plus être réceptionné.';
+    end if;
     if v.statut not in ('nouveau', 'chez_prestataire') then
       raise exception 'Ce vêtement n''était pas chez le prestataire : il est « % ». Réception impossible.',
         replace(v.statut::text, '_', ' ');
@@ -522,8 +569,10 @@ begin
     raise exception 'Le code-barre % existe déjà dans le parc.', trim(p_code_barre);
   end if;
 
+  -- Le rebut se décide à la réception d'une pièce connue, jamais à la
+  -- création : le paramètre est conservé pour la compatibilité, mais ignoré.
   insert into vetement (code_barre, type_id, taille, rebut)
-  values (trim(p_code_barre), p_type_id, p_taille, p_rebut)
+  values (trim(p_code_barre), p_type_id, p_taille, false)
   returning id into v_id;
 
   return (
@@ -680,15 +729,15 @@ select
   t.id      as type_id,
   t.libelle as type_libelle,
   c.taille,
-  count(v.id) filter (where v.statut = 'en_stock' and not v.rebut) as disponible,
-  count(v.id) filter (where v.statut = 'en_stock' and v.rebut)     as disponible_rebut,
+  count(v.id) filter (where v.statut = 'en_stock')                 as disponible,
+  count(v.id) filter (where v.statut = 'rebut')                    as au_rebut,
   count(v.id) filter (where v.statut = 'en_utilisation')           as en_utilisation,
   count(v.id) filter (where v.statut = 'sale')                     as sale,
   count(v.id) filter (where v.statut = 'chez_prestataire')                as chez_prestataire,
   count(v.id)                                                      as parc_total,
   s.minimum,
   greatest(coalesce(s.minimum, 0)
-           - count(v.id) filter (where v.statut = 'en_stock' and not v.rebut), 0) as manque
+           - count(v.id) filter (where v.statut = 'en_stock'), 0) as manque
 from combinaisons c
 join type_vetement t on t.id = c.type_id
 left join vetement v on v.type_id = c.type_id and v.taille = c.taille
@@ -696,7 +745,7 @@ left join seuil_stock s on s.type_id = c.type_id and s.taille = c.taille
 group by t.id, t.libelle, c.taille, s.minimum;
 
 comment on view v_stock_disponible is
-  'Les vêtements « rebut » sont comptés à part : ils restent dans le parc mais sont réservés aux stagiaires.';
+  'Un rebut ne circule plus : il est compté à part et ne comble jamais un manque.';
 
 
 -- Chez le prestataire depuis X jours — l'argument concret face à une facture contestable.
@@ -968,6 +1017,27 @@ left join lateral (
 where v.statut = 'sale';
 
 
+-- Ce qui peut partir au lavage : le stock. Depuis que les opérateurs ne
+-- prennent plus les vêtements, c'est cette liste — et non la corbeille — que
+-- l'écran Expédition propose à cocher ou scanner.
+create or replace view v_expediable as
+select
+  v.id as vetement_id, v.code_barre,
+  t.libelle as type_libelle, t.id as type_id,
+  v.taille, v.nb_lavages,
+  m.horodatage as recu_le,
+  (current_date - m.horodatage::date) as jours_en_stock
+from vetement v
+join type_vetement t on t.id = v.type_id
+left join lateral (
+  select horodatage
+    from mouvement
+   where vetement_id = v.id and type = 'RECEPTION' and not annule
+   order by horodatage desc limit 1
+) m on true
+where v.statut in ('en_stock', 'sale');
+
+
 -- Enregistre une expédition complète : un bulletin, N mouvements, une seule
 -- transaction.
 --
@@ -1023,10 +1093,14 @@ begin
      where v.id = any(p_vetement_ids)
      order by v.code_barre
   loop
-    -- Même règle que enregistrer_mouvement(..., 'expedition') : seul le linge
-    -- sale part chez le prestataire.
-    if r.statut <> 'sale' then
-      raise exception '% (% taille %) n''est plus dans la corbeille : il est « % ». Rien n''a été envoyé, rafraîchissez la liste.',
+    -- Même règle que enregistrer_mouvement(..., 'expedition') : part ce qui
+    -- est en stock. Un rebut ne bouge plus.
+    if r.statut = 'rebut' then
+      raise exception '% (% taille %) est au rebut : il ne part plus au lavage. Rien n''a été envoyé.',
+        r.code_barre, r.libelle, r.taille;
+    end if;
+    if r.statut not in ('en_stock', 'sale') then
+      raise exception '% (% taille %) n''est plus en stock : il est « % ». Rien n''a été envoyé, rafraîchissez la liste.',
         r.code_barre, r.libelle, r.taille, replace(r.statut::text, '_', ' ');
     end if;
 
@@ -1037,8 +1111,8 @@ begin
     v_envoyes := v_envoyes + 1;
   end loop;
 
-  -- Ce qui reste `sale` après coup : ni scanné ni coché, donc absent du bac.
-  select count(*) into v_restants from vetement where statut = 'sale';
+  -- Ce qui reste en stock après coup : ni scanné ni coché, donc pas parti.
+  select count(*) into v_restants from vetement where statut in ('en_stock', 'sale');
 
   return jsonb_build_object(
     'document_id', v_doc_id,
@@ -1061,21 +1135,21 @@ begin
         join type_vetement t on t.id = vt.type_id
        where m.document_id = v_doc_id and m.type = 'ENVOI_PRESTATAIRE' and not m.annule
     ),
-    -- Ce qui n'a été ni scanné ni coché. Information interne : ça n'a pas sa
-    -- place sur le papier remis au prestataire, mais c'est le signal des égarés.
+    -- Ce qui n'a été ni scanné ni coché, donc resté en stock. Information
+    -- interne : ça n'a pas sa place sur le papier remis au prestataire.
     'restants', (
       select coalesce(jsonb_agg(jsonb_build_object(
                'code_barre',   code_barre,
                'type_libelle', type_libelle,
                'taille',       taille,
-               'jours',        jours_depuis_retour)
-             order by jours_depuis_retour desc), '[]'::jsonb)
-        from v_linge_sale
+               'jours',        jours_en_stock)
+             order by jours_en_stock desc), '[]'::jsonb)
+        from v_expediable
     )
   );
 end $$;
 
-grant select on v_linge_sale to authenticated;
+grant select on v_linge_sale, v_expediable to authenticated;
 grant execute on function enregistrer_expedition(bigint[]) to authenticated;
 
 
@@ -1138,6 +1212,9 @@ declare
   v_recus    integer := 0;
   v_crees    integer := 0;
   v_laves    integer := 0;
+  v_rebuts   integer := 0;
+  v_connu    boolean;
+  v_rebut    boolean;
   v_codes    text[] := '{}';
 begin
   if not est_admin() then
@@ -1188,14 +1265,22 @@ begin
         raise exception 'Le code-barre % est inconnu : indiquez son type et sa taille pour le créer.',
           v_code;
       end if;
+      -- Jamais rebut à la création : une pièce neuve n'a pas encore été
+      -- jugée. Le rebut se décide au retour d'une pièce connue.
       insert into vetement (code_barre, type_id, taille, rebut)
       values (v_code,
               (ligne ->> 'type_id')::bigint,
               (ligne ->> 'taille')::smallint,
-              coalesce((ligne ->> 'rebut')::boolean, false))
+              false)
       returning id into v_vet_id;
       v_crees := v_crees + 1;
+      v_connu := false;
     else
+      v_connu := true;
+      if v.statut = 'rebut' then
+        raise exception '% (% taille %) est au rebut : il ne peut plus être réceptionné.',
+          v_code, v.libelle, v.taille;
+      end if;
       if v.statut not in ('nouveau', 'chez_prestataire') then
         raise exception '% (% taille %) n''était pas chez le prestataire : il est « % ». Rien n''a été réceptionné.',
           v_code, v.libelle, v.taille, replace(v.statut::text, '_', ' ');
@@ -1211,6 +1296,16 @@ begin
     insert into mouvement (vetement_id, type, document_id, cree_par_admin)
     values (v_vet_id, 'RECEPTION', v_doc_id, auth.uid());
 
+    -- Le prestataire a jugé la pièce hors d'usage mais la rend propre : elle
+    -- entre, puis passe au rebut — deux mouvements, pour que le compteur de
+    -- lavages compte bien ce dernier passage et que le journal dise tout.
+    v_rebut := v_connu and coalesce((ligne ->> 'rebut')::boolean, false);
+    if v_rebut then
+      insert into mouvement (vetement_id, type, document_id, cree_par_admin)
+      values (v_vet_id, 'MISE_AU_REBUT', v_doc_id, auth.uid());
+      v_rebuts := v_rebuts + 1;
+    end if;
+
     perform recalculer_vetement(v_vet_id);
     v_recus := v_recus + 1;
   end loop;
@@ -1222,6 +1317,7 @@ begin
     'nb_recus',    v_recus,
     'nb_crees',    v_crees,
     'nb_laves',    v_laves,
+    'nb_rebuts',   v_rebuts,
     'expedition',  (select numero from document where id = p_expedition_id),
     'reference_prestataire', nullif(trim(p_reference_prestataire), ''),
     -- L'écart envoyé / reçu, par type et taille : c'est ce tableau qui fait
@@ -1266,7 +1362,7 @@ begin
         from mouvement m
         join vetement vt on vt.id = m.vetement_id
         join type_vetement t on t.id = vt.type_id
-       where m.document_id = v_doc_id
+       where m.document_id = v_doc_id and m.type = 'RECEPTION'
     )
   );
 end $$;
@@ -1401,7 +1497,8 @@ select
   (select count(*) from document
     where genre = 'expedition'
       and not exists (select 1 from document r where r.expedition_liee_id = document.id))
-                                                                  as expeditions_ouvertes;
+                                                                  as expeditions_ouvertes,
+  (select count(*) from vetement where statut = 'rebut')          as rebut;
 
 
 grant select on v_vetement, v_journal_complet, v_stock_disponible, v_compteurs

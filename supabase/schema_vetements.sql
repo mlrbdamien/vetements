@@ -347,11 +347,48 @@ begin
 
   -- `rebut` est désormais dérivé comme les trois autres colonnes : le journal
   -- est la seule source, y compris pour ce qui ne bouge plus.
+  --
+  -- Le drapeau `app.recalcul` ouvre le passage au trigger qui, sinon, refuse
+  -- toute écriture sur ces quatre colonnes. Portée : la transaction courante.
+  perform set_config('app.recalcul', 'on', true);
   update vetement
      set statut = v_statut, nb_lavages = v_lavages,
          detenteur_id = v_detenteur, rebut = v_rebut
    where id = p_vetement_id;
+  perform set_config('app.recalcul', 'off', true);
 end $$;
+
+
+-- ---------------------------------------------------------------------------
+-- Le journal est la source de vérité — et la base le garantit.
+--
+-- Jusqu'ici, ce principe vivait dans les commentaires et dans les RPC : les
+-- droits, eux, laissaient tout compte authentifié réécrire `statut`,
+-- `nb_lavages`, `detenteur_id` et `rebut` directement. Ce trigger refuse toute
+-- modification de ces colonnes qui ne vienne pas de `recalculer_vetement`,
+-- quel que soit le rôle. Les autres colonnes (type, taille, code-barre)
+-- restent modifiables : elles décrivent la pièce, pas son état.
+-- ---------------------------------------------------------------------------
+
+create or replace function proteger_etat_vetement()
+  returns trigger language plpgsql as $$
+begin
+  if current_setting('app.recalcul', true) = 'on' then
+    return new;
+  end if;
+  if new.statut       is distinct from old.statut
+  or new.nb_lavages   is distinct from old.nb_lavages
+  or new.detenteur_id is distinct from old.detenteur_id
+  or new.rebut        is distinct from old.rebut then
+    raise exception 'L''état d''un vêtement se déduit de son journal : enregistrez un mouvement plutôt que de modifier son statut, ses lavages, son détenteur ou son rebut.';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists trg_vetement_etat_derive on vetement;
+create trigger trg_vetement_etat_derive
+  before update on vetement
+  for each row execute function proteger_etat_vetement();
 
 
 -- ---------------------------------------------------------------------------
@@ -565,6 +602,12 @@ create or replace function creer_vetement(
 declare
   v_id bigint;
 begin
+  -- L'écran Entrée marchandise est réservé à l'administratrice ; la fonction
+  -- qu'il appelle doit l'être aussi, sans quoi n'importe quel poste pourrait
+  -- injecter des références dans le parc.
+  if not est_admin() then
+    raise exception 'Seule l''administratrice peut créer une référence.';
+  end if;
   if exists (select 1 from vetement where code_barre = trim(p_code_barre)) then
     raise exception 'Le code-barre % existe déjà dans le parc.', trim(p_code_barre);
   end if;
@@ -933,12 +976,22 @@ grant select on type_vetement, vetement, mouvement, document, seuil_stock to aut
 grant select on operateur_public, v_stock_disponible, v_chez_prestataire, v_en_utilisation,
                 v_historique_vetement, v_besoins_previsionnels, v_controle_facturation
       to authenticated;
-grant select on administrateur to authenticated;
+-- La liste des administratrices ne regarde pas les postes : est_admin() est
+-- SECURITY DEFINER et lit la table avec ses propres droits.
+revoke select on administrateur from authenticated;
+drop policy if exists "lecture authentifiee" on administrateur;
 
 -- Écritures directes réservées à l'admin ; les postes écrivent via les RPC
 -- SECURITY DEFINER, qui portent leurs propres contrôles métier.
 grant insert, update, delete on type_vetement, seuil_stock to authenticated;
-grant insert, update on vetement, document to authenticated;
+
+-- Le parc et les bulletins ne s'écrivent QUE par les RPC. Un GRANT direct
+-- permettait à tout compte authentifié de réécrire l'état d'un vêtement sans
+-- mouvement au journal, ou de créer un bulletin sans expédition — les deux
+-- ont été reproduits depuis le compte de poste. Le REVOKE retire le droit
+-- aux bases déjà en service ; les RPC, qui s'exécutent avec les droits de
+-- leur propriétaire, n'en ont jamais eu besoin.
+revoke insert, update, delete on vetement, document from authenticated;
 
 do $$
 declare
@@ -946,7 +999,7 @@ declare
 begin
   -- Lecture ouverte à tout compte authentifié.
   for r in select unnest(array['type_vetement','vetement','mouvement','document',
-                               'seuil_stock','administrateur']) as t
+                               'seuil_stock']) as t
   loop
     execute format(
       'drop policy if exists "lecture authentifiee" on %I', r.t);
@@ -963,14 +1016,11 @@ begin
   end loop;
 end $$;
 
--- Le parc et les bulletins : tout poste peut créer et corriger.
+-- Les anciennes policies d'écriture ouverte sur le parc et les bulletins sont
+-- retirées des bases en service. Sans GRANT elles seraient inertes, mais les
+-- laisser inviterait à réaccorder le droit un jour « puisque la policy est là ».
 drop policy if exists "poste ecrit vetement" on vetement;
-create policy "poste ecrit vetement" on vetement
-  for all to authenticated using (true) with check (true);
-
 drop policy if exists "poste ecrit document" on document;
-create policy "poste ecrit document" on document
-  for all to authenticated using (true) with check (true);
 
 -- Aucune policy d'écriture sur mouvement : le journal ne se remplit que par
 -- enregistrer_mouvement() et annuler_mouvement().
@@ -980,14 +1030,20 @@ grant execute on function
   enregistrer_mouvement(text, bigint, text, text, bigint),
   annuler_mouvement(bigint, bigint, text),
   creer_vetement(text, bigint, smallint, boolean),
-  prochain_numero_document(genre_document),
-  recalculer_vetement(bigint),
   est_admin(),
   creer_operateur(text, text, text),
   definir_pin_operateur(bigint, text),
   desactiver_operateur(bigint),
   reactiver_operateur(bigint)
   to authenticated;
+
+-- Appelées uniquement depuis d'autres fonctions SECURITY DEFINER, qui
+-- s'exécutent avec les droits de leur propriétaire : aucun client n'a besoin
+-- de les invoquer. Le REVOKE retire le droit accordé aux bases en service.
+revoke execute on function
+  prochain_numero_document(genre_document),
+  recalculer_vetement(bigint)
+  from authenticated;
 
 
 -- ===========================================================================

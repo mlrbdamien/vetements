@@ -6,57 +6,62 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { Session } from '@supabase/supabase-js';
-import { supabase } from './supabase';
+import type { Session, SupabaseClient } from '@supabase/supabase-js';
+import { definirAdminActif, supabaseAdmin, supabasePoste } from './supabase';
 import { estAdmin as verifierEstAdmin } from './api';
 import { VITRINE } from './demo';
 
 /**
- * Deux niveaux d'identité, à ne pas confondre :
+ * Trois niveaux d'identité, à ne pas confondre :
  *
- *  1. La SESSION SUPABASE AUTH — soit le compte technique partagé
- *     « poste », ouvert automatiquement au démarrage, soit le compte
- *     nominatif de l'administratrice. C'est elle qui satisfait les policies RLS.
+ *  1. LE POSTE — compte Supabase Auth technique, relié une fois à la main
+ *     depuis l'écran de mise en service. Sa session est conservée sur
+ *     l'ordinateur ; le mot de passe ne vit nulle part dans le code.
  *
- *  2. L'OPÉRATEUR courant — une simple sélection dans une liste, confirmée par
- *     un PIN vérifié en base. Aucun compte Auth : c'est ce qui permet à dix
- *     personnes de se relayer sur le même poste sans dix mots de passe.
+ *  2. L'ADMINISTRATRICE — compte Supabase Auth nominatif, session limitée à
+ *     l'onglet. Elle cohabite avec celle du poste : quitter l'admin ne
+ *     déconnecte pas le poste.
+ *
+ *  3. L'OPÉRATEUR courant — une sélection dans une liste, confirmée par un
+ *     PIN vérifié en base. Aucun compte Auth.
  */
 interface EtatSession {
   session: Session | null;
   admin: boolean;
   chargement: boolean;
   erreur: string | null;
+  /** Vrai tant que ce poste n'a jamais été relié à la base. */
+  posteAConfigurer: boolean;
+  connecterPoste: (email: string, motDePasse: string) => Promise<void>;
   connecterAdmin: (email: string, motDePasse: string) => Promise<void>;
   quitterAdmin: () => Promise<void>;
 }
 
 const Contexte = createContext<EtatSession | null>(null);
 
+/** Traduit les refus de GoTrue en phrases qui disent quoi faire. */
+function messageDeConnexion(code: string | undefined, message: string): string {
+  // « Identifiants invalides » et « compte non confirmé » se corrigent très
+  // différemment ; masquer le second derrière le premier envoie chercher un
+  // mot de passe qui est bon.
+  if (code === 'email_not_confirmed') {
+    return "Ce compte n'a jamais été confirmé. Dans Supabase, ouvrez Authentication → Users, puis confirmez-le.";
+  }
+  if (code === 'invalid_credentials') return 'Email ou mot de passe incorrect.';
+  return `Connexion refusée par Supabase : ${message}`;
+}
+
+async function seConnecter(client: SupabaseClient, email: string, motDePasse: string) {
+  const { error } = await client.auth.signInWithPassword({ email, password: motDePasse });
+  if (error) throw new Error(messageDeConnexion(error.code, error.message));
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
+  const [sessionAdmin, setSessionAdmin] = useState<Session | null>(null);
   const [admin, setAdmin] = useState(false);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
-
-  // Ouverture automatique de la session de poste au démarrage : personne ne
-  // doit taper un mot de passe pour scanner une blouse.
-  const ouvrirSessionPoste = useCallback(async () => {
-    if (!supabase) return null;
-    const email = import.meta.env.VITE_POSTE_EMAIL;
-    const motDePasse = import.meta.env.VITE_POSTE_MOT_DE_PASSE;
-    if (!email || !motDePasse) return null;
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password: motDePasse,
-    });
-    if (error) {
-      setErreur(`Connexion du poste impossible : ${error.message}`);
-      return null;
-    }
-    return data.session;
-  }, []);
 
   useEffect(() => {
     // Vitrine : aucun backend, donc aucune session à ouvrir. Tous les écrans
@@ -68,7 +73,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (!supabase) {
+    if (!supabasePoste || !supabaseAdmin) {
       setErreur(
         "L'application n'est pas configurée : VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY sont absents.",
       );
@@ -78,75 +83,75 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
     let vivant = true;
 
+    // On lit ce que l'ordinateur a conservé. Rien n'est ouvert automatiquement :
+    // un poste jamais relié affichera l'écran de mise en service.
     (async () => {
-      const { data } = await supabase!.auth.getSession();
-      const s = data.session ?? (await ouvrirSessionPoste());
-      if (vivant) {
-        setSession(s);
-        setChargement(false);
-      }
+      const [{ data: p }, { data: a }] = await Promise.all([
+        supabasePoste.auth.getSession(),
+        supabaseAdmin.auth.getSession(),
+      ]);
+      if (!vivant) return;
+      setSession(p.session);
+      setSessionAdmin(a.session);
+      setChargement(false);
     })();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) =>
+    const { data: subPoste } = supabasePoste.auth.onAuthStateChange((_e, s) =>
       setSession(s),
+    );
+    const { data: subAdmin } = supabaseAdmin.auth.onAuthStateChange((_e, s) =>
+      setSessionAdmin(s),
     );
     return () => {
       vivant = false;
-      sub.subscription.unsubscribe();
+      subPoste.subscription.unsubscribe();
+      subAdmin.subscription.unsubscribe();
     };
-  }, [ouvrirSessionPoste]);
+  }, []);
 
   // Le menu Admin n'est qu'un confort d'affichage : la vraie garde est
-  // est_admin() en base, sur chaque RPC d'administration.
+  // est_admin() en base, sur chaque RPC d'administration. On aiguille d'abord
+  // les requêtes vers le client admin, puis on demande à la base son avis.
   useEffect(() => {
     if (VITRINE) return;
-    if (!session) {
+    definirAdminActif(sessionAdmin !== null);
+    if (!sessionAdmin) {
       setAdmin(false);
       return;
     }
     verifierEstAdmin()
       .then(setAdmin)
       .catch(() => setAdmin(false));
-  }, [session]);
+  }, [sessionAdmin]);
 
-  const connecterAdmin = useCallback(
-    async (email: string, motDePasse: string) => {
-      if (!supabase) throw new Error('Application non configurée.');
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password: motDePasse,
-      });
-      // Distinguer les causes : « identifiants invalides » et « compte non
-      // confirmé » se corrigent très différemment, et masquer la seconde
-      // derrière la première envoie chercher un mot de passe qui est bon.
-      if (error) {
-        const code = error.code ?? '';
-        if (code === 'email_not_confirmed') {
-          throw new Error(
-            "Ce compte n'a jamais été confirmé. Dans Supabase, ouvrez Authentication → Users, puis confirmez-le.",
-          );
-        }
-        throw new Error(
-          code === 'invalid_credentials'
-            ? 'Email ou mot de passe incorrect.'
-            : `Connexion refusée par Supabase : ${error.message}`,
-        );
-      }
-    },
-    [],
-  );
+  const connecterPoste = useCallback(async (email: string, motDePasse: string) => {
+    if (!supabasePoste) throw new Error('Application non configurée.');
+    await seConnecter(supabasePoste, email, motDePasse);
+  }, []);
 
-  // Quitter l'admin ne déconnecte pas le poste : on rebascule sur le compte
-  // technique, sinon l'écran Scan deviendrait inutilisable après coup.
+  const connecterAdmin = useCallback(async (email: string, motDePasse: string) => {
+    if (!supabaseAdmin) throw new Error('Application non configurée.');
+    await seConnecter(supabaseAdmin, email, motDePasse);
+  }, []);
+
+  // Quitter l'admin ne touche pas au poste : sa session est ailleurs.
   const quitterAdmin = useCallback(async () => {
-    if (!supabase) return;
-    await supabase.auth.signOut();
-    setSession(await ouvrirSessionPoste());
-  }, [ouvrirSessionPoste]);
+    if (!supabaseAdmin) return;
+    await supabaseAdmin.auth.signOut();
+  }, []);
 
   return (
     <Contexte.Provider
-      value={{ session, admin, chargement, erreur, connecterAdmin, quitterAdmin }}
+      value={{
+        session,
+        admin,
+        chargement,
+        erreur,
+        posteAConfigurer: !VITRINE && !chargement && !erreur && session === null,
+        connecterPoste,
+        connecterAdmin,
+        quitterAdmin,
+      }}
     >
       {children}
     </Contexte.Provider>

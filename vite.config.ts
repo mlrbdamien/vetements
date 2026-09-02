@@ -26,8 +26,6 @@ export default defineConfig(({ mode }) => ({
           'import.meta.env.VITE_SUPABASE_URL': 'undefined',
           'import.meta.env.VITE_SUPABASE_ANON_KEY': 'undefined',
           'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY': 'undefined',
-          'import.meta.env.VITE_POSTE_EMAIL': 'undefined',
-          'import.meta.env.VITE_POSTE_MOT_DE_PASSE': 'undefined',
         }
       : {},
 

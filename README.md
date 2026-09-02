@@ -22,8 +22,13 @@ pilotée à la douchette USB en émulation clavier.
    values ('<uuid du compte d''l'administratrice>', 'l'administratrice');
    ```
 
-4. Copier `.env.local.example` vers `.env.local` et le remplir.
+4. Copier `.env.local.example` vers `.env.local` et le remplir — URL et clé
+   publique seulement, aucun mot de passe.
 5. `npm install` puis `npm run dev`.
+6. Au premier lancement sur chaque poste, l'écran **Mise en service** demande
+   le compte de poste une fois ; la session est ensuite conservée sur
+   l'ordinateur. Le mot de passe ne figure nulle part dans le code ni dans le
+   build.
 
 Les opérateurs sont amorcés **sans code PIN**. L'administratrice initialise
 chaque code depuis l'onglet Opérateurs : il n'y a volontairement aucun code par
@@ -145,7 +150,7 @@ rechargement remet tout à zéro.
 
 Deux barrières empêchent les identifiants réels d'y entrer :
 
-1. `vite.config.ts` écrase les variables `VITE_SUPABASE_*` et `VITE_POSTE_*`
+1. `vite.config.ts` écrase les variables `VITE_SUPABASE_*`
    en mode `vitrine`. C'est indispensable : Vite charge `.env.local` dans tous
    les modes, et `.env.local` a priorité sur `.env.vitrine` — sans ce blocage,
    les vrais identifiants seraient compilés en clair dans la page publique.

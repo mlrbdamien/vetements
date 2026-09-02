@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { obtenirClient } from './supabase';
 import { VITRINE, demo } from './demo';
 import { definirSonde, estPanneReseau, signalerReseau } from './connexion';
 import type {
@@ -43,13 +43,19 @@ function erreurDeSupabase(message: string, code?: string): Error {
   );
 }
 
+/**
+ * Le client de la requête en cours : celui de l'administratrice quand elle est
+ * connectée, sinon celui du poste. Les deux sessions cohabitent — voir
+ * lib/supabase.ts.
+ */
 function client() {
-  if (!supabase) {
+  const c = obtenirClient();
+  if (!c) {
     throw new Error(
       "L'application n'est pas configurée (VITE_SUPABASE_URL manquant). Prévenez l'administratrice.",
     );
   }
-  return supabase;
+  return c;
 }
 
 async function rpc<T>(nom: string, args: Record<string, unknown>): Promise<T> {

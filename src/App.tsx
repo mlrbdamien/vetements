@@ -6,6 +6,8 @@ import { Alerte } from './components/ui';
 import { ExigeOperateur } from './components/Identification';
 import { ExigeAdmin } from './components/ConnexionAdmin';
 import { PanneauAide } from './components/Aide';
+import { MiseEnService } from './components/MiseEnService';
+import { VITRINE } from './lib/demo';
 import {
   BandeauHorsLigne,
   BandeauVitrine,
@@ -23,12 +25,14 @@ import { Parc } from './pages/Parc';
 import { TableauxDeBord } from './pages/TableauxDeBord';
 
 function Corps() {
-  const { chargement, erreur, admin } = useSession();
+  const { session, chargement, erreur, admin, posteAConfigurer } = useSession();
   const enLigne = useEnLigne();
   const [onglet, setOnglet] = useState<Onglet>('scan');
   const [aideOuverte, setAideOuverte] = useState(false);
   const [railOuvert, setRailOuvert] = useState(false);
-  const [compteurs, rechargerCompteurs] = useCompteurs(!chargement && !erreur);
+  const [compteurs, rechargerCompteurs] = useCompteurs(
+    VITRINE || (!!session && !erreur),
+  );
 
 
   const changerOnglet = useCallback((o: Onglet) => {
@@ -56,6 +60,9 @@ function Corps() {
       </div>
     );
   }
+
+  // Un poste jamais relié à la base ne peut rien faire : on le relie d'abord.
+  if (posteAConfigurer) return <MiseEnService />;
 
   return (
     <div className="h-dvh flex flex-col">

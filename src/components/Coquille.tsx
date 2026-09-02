@@ -353,8 +353,15 @@ export function BandeauHorsLigne() {
 
 /* ------------------------------------------------------------------------- */
 
-/** Charge les compteurs et les rafraîchit sur demande. */
-export function useCompteurs(): [Compteurs | null, () => void] {
+/**
+ * Charge les compteurs et les rafraîchit sur demande.
+ *
+ * `pret` doit être vrai une fois la session de poste ouverte. Sans cette
+ * garde, la première lecture partait avant l'authentification — 401 en
+ * production, et comme rien ne relançait l'appel ensuite, le pied « Parc »
+ * restait vide toute la journée. La vitrine, sans auth, masquait le défaut.
+ */
+export function useCompteurs(pret: boolean): [Compteurs | null, () => void] {
   const [compteurs, setCompteurs] = useState<Compteurs | null>(null);
 
   const recharger = () => {
@@ -364,6 +371,9 @@ export function useCompteurs(): [Compteurs | null, () => void] {
       .catch(() => setCompteurs(null));
   };
 
-  useEffect(recharger, []);
+  useEffect(() => {
+    if (pret) recharger();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pret]);
   return [compteurs, recharger];
 }

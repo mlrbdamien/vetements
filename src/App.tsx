@@ -28,7 +28,7 @@ function Corps() {
   const [onglet, setOnglet] = useState<Onglet>('scan');
   const [aideOuverte, setAideOuverte] = useState(false);
   const [railOuvert, setRailOuvert] = useState(false);
-  const [compteurs, rechargerCompteurs] = useCompteurs();
+  const [compteurs, rechargerCompteurs] = useCompteurs(!chargement && !erreur);
 
 
   const changerOnglet = useCallback((o: Onglet) => {

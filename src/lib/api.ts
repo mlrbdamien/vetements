@@ -268,7 +268,7 @@ export async function lireCompteurs(): Promise<Compteurs> {
     .from('v_compteurs')
     .select(
       'en_stock, en_utilisation, sale, chez_prestataire, parc_total, sous_seuil, ' +
-        'detenteurs_inactifs, expeditions_ouvertes',
+        'detenteurs_inactifs, expeditions_ouvertes, rebut',
     )
     .maybeSingle();
   if (error) throw erreurDeSupabase(error.message, error.code);
@@ -350,7 +350,7 @@ export async function lireHistorique(vetementId: number) {
 export function lireStockDisponible() {
   return table<StockDisponible>(
     'v_stock_disponible',
-    'type_id, type_libelle, taille, disponible, disponible_rebut, ' +
+    'type_id, type_libelle, taille, disponible, au_rebut, ' +
       'en_utilisation, sale, chez_prestataire, parc_total, minimum, manque',
   );
 }
